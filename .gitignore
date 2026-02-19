@@ -1,0 +1,23 @@
+# Node/Bun
+frontend/node_modules/
+frontend/.cache/
+frontend/.svelte-kit/
+
+# Bun lockfile (commitable for reproducible installs)
+# bun.lockb
+
+# Build outputs
+frontend/build/
+frontend/dist/
+frontend/.vercel/
+frontend/.netlify/
+
+# Zig build outputs
+zig-cache/
+zig-out/
+
+# OS and editors
+.DS_Store
+*.log
+.vscode/
+.idea/
