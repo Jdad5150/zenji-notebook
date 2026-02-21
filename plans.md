@@ -450,17 +450,17 @@ zig build -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu
 
 ### Checkpoints
 
-- [x] Initialize git repo
+- [X] Initialize git repo
 - [X] Create directory structure
 - [X] Initialize Zig project with build.zig
-- [ ] Add http.zig as a dependency in build.zig.zon
-- [ ] Vendor libzmq source (or start with dynamic linking)
-- [ ] Verify `zig build` compiles a hello world server
-- [ ] Initialize Svelte project in frontend/
-- [ ] Install Tailwind CSS + PostCSS
-- [ ] Verify `npm run build` produces dist/ output
-- [ ] Verify Zig can @embedFile a test file from frontend/dist/
-- [ ] Create a basic "hello world" that serves an embedded HTML page
+- [X] Add http.zig as a dependency in build.zig.zon
+- [X] Vendor libzmq source (or start with dynamic linking)
+- [X] Verify `zig build` compiles a hello world server
+- [X] Initialize Svelte project in frontend/
+- [X] Install Tailwind CSS + PostCSS
+- [X] Verify `npm run build` produces dist/ output
+- [X] Verify Zig can @embedFile a test file from frontend/dist/
+- [X] Create a basic "hello world" that serves an embedded HTML page
 
 ### Validation Test
 

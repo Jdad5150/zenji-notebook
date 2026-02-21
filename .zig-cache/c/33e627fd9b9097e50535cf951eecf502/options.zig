@@ -1,0 +1,1 @@
+pub const index_html: []const u8 = "<!doctype html>\n<html lang=\"en\">\n\t<head>\n\t\t<meta charset=\"UTF-8\" />\n\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\t\t<title>Zenji Notebook</title>\n\t</head>\n\t<body>\n\t\t<h1>Zenji Notebook \xe2\x80\x94 Coming Soon</h1>\n\t</body>\n</html>\n";
