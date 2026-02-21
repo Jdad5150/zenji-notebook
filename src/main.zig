@@ -1,29 +1,50 @@
 const std = @import("std");
 const httpz = @import("httpz");
+const server = @import("server/server.zig");
 
-const frontend = @import("frontend");
-const index_html = frontend.index_html;
+const Arg = enum {
+    @"--port",
+    @"--dev",
+    @"--no-auth",
+    @"--token",
+    unknown,
+};
+
+fn parseArgs(args: []const []const u8) !server.Config {
+    var config = server.Config{};
+    var i: usize = 1;    
+    
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        const parsed = std.meta.stringToEnum(Arg, arg) orelse .unknown;
+        switch (parsed) {
+            .@"--port" => {
+                if (i + 1 >= args.len) return error.MissingPort;
+                i += 1;
+                config.port = try std.fmt.parseInt(u16, args[i], 10);
+            },
+            .@"--dev" => config.dev = true,
+            .@"--no-auth" => config.no_auth = true,
+            .@"--token" => {
+                if (i + 1 >= args.len) return error.MissingToken;
+                i += 1;
+                config.token = args[i];
+            },
+            .unknown => {},
+        }
+    }
+
+    return config;
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+    
+    const config = try parseArgs(args);   
 
-    var server = try httpz.Server(void).init(allocator, .{ .address = .localhost(8888) }, {});
-    defer {
-        server.stop();
-        server.deinit();
-    }
-
-    var router = try server.router(.{});
-    router.get("/", indexHandler, .{});
-
-    std.debug.print("Zenji listening on http://localhost:8888\n", .{});
-    try server.listen();
-}
-
-fn indexHandler(req: *httpz.Request, res: *httpz.Response) !void {
-    _ = req;
-    res.status = 200;
-    res.content_type = .HTML;
-    res.body = index_html;
+    try server.startServer(allocator, config);
 }

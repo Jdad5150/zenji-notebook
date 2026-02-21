@@ -479,7 +479,7 @@ zig build run
 
 ### Checkpoints
 
-- [ ] Set up http.zig server with configurable port
+- [X] Set up http.zig server with configurable port
 - [ ] Implement route registration for all Jupyter API paths
 - [ ] Implement static file serving from embedded assets
 - [ ] Implement static file serving from filesystem (dev mode)
@@ -487,7 +487,7 @@ zig build run
 - [ ] Implement basic request logging middleware
 - [ ] Implement CORS headers middleware
 - [ ] Implement token-based authentication middleware
-- [ ] Add CLI argument parsing (--port, --token, --no-auth, --dev)
+- [X] Add CLI argument parsing (--port, --token, --no-auth, --dev)
 - [ ] Implement MIME type detection for static files
 - [ ] Add graceful shutdown on SIGINT/SIGTERM
 
