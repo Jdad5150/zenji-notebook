@@ -1,10 +1,12 @@
+//! HTTP server initialisation and lifecycle.
+//!
+//! Owns the httpz server instance, wires up the router, and blocks on listen.
+//! Configuration (port, auth token, dev mode) is passed in via Config.
+
 const std = @import("std");
 const log = std.log;
 const httpz = @import("httpz");
-
-const frontend = @import("frontend");
-const index_html = frontend.index_html;
-
+const routerz = @import("./router.zig");
 pub const Config = struct {
     port: u16 = 8888,
     token: ?[]const u8 = null,
@@ -19,16 +21,9 @@ pub fn startServer(allocator: std.mem.Allocator, config: Config) !void {
         server.deinit();
     }
 
-    var router = try server.router(.{});
-    router.get("/", indexHandler, .{});
+    const router = try server.router(.{});
+    try routerz.registerRoutes(router);
 
     log.info("Zenji-notebook started on port {d}", .{config.port});
     try server.listen();
-}
-
-fn indexHandler(req: *httpz.Request, res: *httpz.Response) !void {
-    _ = req;
-    res.status = 200;
-    res.content_type = .HTML;
-    res.body = index_html;
 }

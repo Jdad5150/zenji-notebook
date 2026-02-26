@@ -1,10 +1,31 @@
-const std = @import("std");
+//! Build script for zenji-notebook.
+//!
+//! Overview of what this build does:
+//!   1. Compiles libzmq from vendored C++ source into a static library.
+//!   2. Compiles the main Zig executable, linking against libzmq and httpz.
+//!   3. Runs crawler.writeRegistry() to scan src/frontend/build/ and generate
+//!      src/assets.zig — an auto-generated file that embeds every frontend
+//!      asset at compile time via @embedFile.
+//!   4. Exposes a `zig build run` step to run the server locally.
+//!
+//! Prerequisites before running `zig build`:
+//!   - Run `bun run build` inside src/frontend/ at least once so that
+//!     src/frontend/build/ exists and src/assets.zig can be generated.
 
-pub fn build(b: *std.Build) void {
+const std = @import("std");
+const crawler = @import("./crawler.zig");
+
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Build libzmq from vendored source
+    // -------------------------------------------------------------------------
+    // libzmq — vendored C++ static library
+    //
+    // ZeroMQ is used for Jupyter kernel communication (the wire protocol runs
+    // over ZMQ sockets). We compile it from source so the binary is fully
+    // self-contained with no runtime dependency on a system libzmq.
+    // -------------------------------------------------------------------------
     const libzmq = b.addLibrary(.{
         .name = "zmq",
         .root_module = b.createModule(.{
@@ -22,7 +43,7 @@ pub fn build(b: *std.Build) void {
         .files = &zmq_sources,
         .flags = &.{
             "-std=c++11",
-            "-DZMQ_HAVE_EPOLL",
+            "-DZMQ_HAVE_EPOLL",   // use epoll as the I/O poller (Linux)
             "-DPOLLER=epoll",
             "-D_POSIX_C_SOURCE=200809L",
             "-DZMQ_HAVE_STRNLEN=1",
@@ -33,7 +54,9 @@ pub fn build(b: *std.Build) void {
     libzmq.linkLibC();
     libzmq.linkLibCpp();
 
-    // Main executable
+    // -------------------------------------------------------------------------
+    // zenji_notebook — main executable
+    // -------------------------------------------------------------------------
     const exe = b.addExecutable(.{
         .name = "zenji_notebook",
         .root_module = b.createModule(.{
@@ -43,37 +66,57 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // httpz is the HTTP server library, pulled in via build.zig.zon.
     const httpz = b.dependency("httpz", .{
         .target = target,
         .optimize = optimize,
     });
-
     exe.root_module.addImport("httpz", httpz.module("httpz"));
+
+    // Link the vendored libzmq we built above.
     exe.linkLibrary(libzmq);
     exe.addIncludePath(b.path("vendor/libzmq/include"));
     exe.linkLibC();
 
-    const frontend_opts = b.addOptions();
-    const index_html_bytes = std.fs.cwd().readFileAlloc(
-        b.allocator,
-        "frontend/build/index.html",
-        10 * 1024 * 1024,
-    ) catch @panic("failed to read index.html");
-    frontend_opts.addOption([]const u8, "index_html", index_html_bytes);
-    exe.root_module.addOptions("frontend", frontend_opts);
+    // -------------------------------------------------------------------------
+    // Frontend asset embedding
+    //
+    // crawler.writeRegistry() walks src/frontend/build/ and writes
+    // src/assets.zig, which looks like:
+    //
+    //   pub const assets = .{
+    //       .@"index.html" = @embedFile("frontend/build/index.html"),
+    //       .@"_app/immutable/..." = @embedFile("frontend/build/_app/..."),
+    //       ...
+    //   };
+    //
+    // This file is then imported as the `static_assets` module so the HTTP
+    // server can serve every frontend file directly from the binary.
+    //
+    // NOTE: src/assets.zig is generated — it is .gitignored and must not be
+    // edited by hand. Re-run `zig build` after a frontend rebuild to refresh it.
+    // -------------------------------------------------------------------------
+    try crawler.writeRegistry(b);
 
-    // const bun_build = b.addSystemCommand(&.{ "bun", "run", "build" });
-    // bun_build.setCwd(b.path("frontend"));
-    // exe.step.dependOn(&bun_build.step);
+    const assets_module = b.createModule(.{
+        .root_source_file = b.path("src/assets.zig"),
+    });
+    exe.root_module.addImport("static_assets", assets_module);
 
     b.installArtifact(exe);
 
+    // -------------------------------------------------------------------------
+    // `zig build run` — build and start the server
+    // -------------------------------------------------------------------------
     const run_step = b.step("run", "Run the app");
     const run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
     run_cmd.step.dependOn(b.getInstallStep());
 }
 
+// Full list of libzmq C++ translation units to compile.
+// Taken directly from the vendored source — do not prune without checking
+// whether the removed file is actually unused.
 const zmq_sources = [_][]const u8{
     "address.cpp",
     "channel.cpp",

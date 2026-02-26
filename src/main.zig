@@ -1,3 +1,12 @@
+//! Entry point for zenji-notebook.
+//!
+//! Parses CLI arguments and starts the HTTP server. All server logic lives
+//! in src/server/. Supported flags:
+//!   --port <n>     Listen port (default 8888)
+//!   --token <tok>  Auth token
+//!   --dev          Enable dev mode
+//!   --no-auth      Disable token authentication
+
 const std = @import("std");
 const httpz = @import("httpz");
 const server = @import("server/server.zig");
