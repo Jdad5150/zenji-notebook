@@ -15,7 +15,7 @@ pub const Config = struct {
 };
 
 pub fn startServer(allocator: std.mem.Allocator, config: Config) !void {
-    var server = try httpz.Server(void).init(allocator, .{ .address = .localhost(config.port) }, {});
+    var server = try httpz.Server(*const Config).init(allocator, .{ .address = .localhost(config.port) }, &config);
     defer {
         server.stop();
         server.deinit();
