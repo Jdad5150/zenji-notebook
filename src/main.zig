@@ -32,7 +32,9 @@ fn parseArgs(args: []const []const u8) !server.Config {
                 i += 1;
                 config.port = try std.fmt.parseInt(u16, args[i], 10);
             },
-            .@"--dev" => config.dev = true,
+            .@"--dev" => if (@import("builtin").mode == .Debug) {
+                config.dev = true;
+            },
             .@"--no-auth" => config.no_auth = true,
             .@"--token" => {
                 if (i + 1 >= args.len) return error.MissingToken;

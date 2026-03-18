@@ -484,12 +484,12 @@ zig build run
 - [X] Implement static file serving from embedded assets
 - [X] Implement static file serving from filesystem (dev mode)
 - [X] Add SPA fallback (unknown routes -> index.html)
-- [ ] Implement basic request logging middleware
-- [ ] Implement CORS headers middleware
-- [ ] Implement token-based authentication middleware
+- [X] Implement basic request logging middleware
+- [X] Implement CORS headers middleware
+- [X] Implement token-based authentication middleware
 - [X] Add CLI argument parsing (--port, --token, --no-auth, --dev)
 - [X] Implement MIME type detection for static files
-- [ ] Add graceful shutdown on SIGINT/SIGTERM
+- [X] Add graceful shutdown on SIGINT/SIGTERM
 
 ### Stub API Responses
 

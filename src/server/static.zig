@@ -5,8 +5,10 @@
 //! serveStaticAsset() is registered as the "/*" catch-all route so any request
 //! that doesn't match an API route falls through to here.
 //!
-//! In dev mode, requests are proxied to the Vite dev server at localhost:5173
-//! so that HMR works without recompiling the Zig binary.
+//! In dev mode, assets are served from src/frontend/build/ on disk instead of
+//! the embedded binary. Run `vite build --watch` alongside the server and
+//! manually reload the browser. True HMR (proxying to the Vite dev server) is
+//! not yet implemented.
 
 const std = @import("std");
 const httpz = @import("httpz");
@@ -17,8 +19,6 @@ const Config = @import("./server.zig").Config;
 pub fn serveStaticAsset(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
     const raw = req.url.path;
     const key = if (raw.len > 0 and raw[0] == '/') raw[1..] else raw;
-
-    std.log.info("static request: {s}", .{raw});
 
     if (ctx.dev) {
         // No file extension = SPA route, serve index.html from disk
