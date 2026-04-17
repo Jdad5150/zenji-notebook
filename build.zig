@@ -43,7 +43,7 @@ pub fn build(b: *std.Build) !void {
         .files = &zmq_sources,
         .flags = &.{
             "-std=c++11",
-            "-DZMQ_HAVE_EPOLL",   // use epoll as the I/O poller (Linux)
+            "-DZMQ_HAVE_EPOLL", // use epoll as the I/O poller (Linux)
             "-DPOLLER=epoll",
             "-D_POSIX_C_SOURCE=200809L",
             "-DZMQ_HAVE_STRNLEN=1",
@@ -104,6 +104,28 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("static_assets", assets_module);
 
     b.installArtifact(exe);
+
+    // -------------------------------------------------------------------------
+    // `zig build test` — run all tests
+    //
+    // We point the test compile unit at src/main.zig so Zig walks the whole
+    // source tree and picks up every `test` block. libzmq and its include path
+    // are linked in the same way as the main executable so that @cImport works.
+    // -------------------------------------------------------------------------
+    const tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/test_all.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    tests.linkLibrary(libzmq);
+    tests.addIncludePath(b.path("vendor/libzmq/include"));
+    tests.linkLibC();
+
+    const test_step = b.step("test", "Run all tests");
+    test_step.dependOn(&b.addRunArtifact(tests).step);
 
     // -------------------------------------------------------------------------
     // `zig build run` — build and start the server
