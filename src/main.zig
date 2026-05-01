@@ -48,14 +48,24 @@ fn parseArgs(args: []const []const u8) !server.Config {
     return config;
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-    
-    const config = try parseArgs(args);   
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    try server.startServer(allocator, config);
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    var config = try parseArgs(args);
+
+    var explicit_no_auth: bool = false;
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        if (std.mem.eql(u8, args[i], "--no-auth")) {
+            explicit_no_auth = true;
+            break;
+        }
+    }
+
+    if (config.token != null and !explicit_no_auth) {
+        config.no_auth = false;
+    }
+
+    try server.startServer(init.io, allocator, config);
 }

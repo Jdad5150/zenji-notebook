@@ -23,12 +23,8 @@ pub const Logger = struct {
 
     pub fn execute(self: *const Logger, req: *httpz.Request, res: *httpz.Response, executor: anytype) !void {
         _ = self;
-        const start = std.time.microTimestamp();
-        defer {
-            const elapsed = std.time.microTimestamp() - start;
-            log.info("{s} {s} {d} {d}us", .{ @tagName(req.method), req.url.path, res.status, elapsed });
-        }
-        return executor.next();
+        try executor.next();
+        log.info("{s} {s} {d}", .{ @tagName(req.method), req.url.path, res.status });
     }
 };
 

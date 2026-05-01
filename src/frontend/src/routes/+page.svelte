@@ -1,246 +1,105 @@
-<!-- src/routes/+page.svelte -->
-<script>
-	let darkMode = true; // toggle this to test light/dark
-	let activeNotebook = 'Untitled Notebook';
+<script lang="ts">
+	import DirectoryBrowser from '$lib/components/DirectoryBrowser.svelte';
+	import { Separator } from '$lib/components/ui/separator';
+	import { goto } from '$app/navigation';
+
+	import { Folder, Clock, FolderOpen } from '@lucide/svelte';
+
+	const STORAGE_KEY = 'zenji-recent-locations';
+	let browsing = $state(false);
+	let recents = $state<string[]>(loadRecents());
+
+	function loadRecents(): string[] {
+		if (typeof window === 'undefined') return [];
+		try {
+			return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+		} catch {
+			return [];
+		}
+	}
+
+	function saveRecent(path: string) {
+		recents = [path, ...recents.filter((r) => r !== path)].slice(0, 5);
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(recents));
+	}
+
+	function openLocation(path: string) {
+		saveRecent(path);
+		goto('/notebook');
+	}
 </script>
 
-<svelte:head>
-	<title>{activeNotebook} – Zenji Notebook</title>
-</svelte:head>
+<div class="relative flex min-h-screen flex-col overflow-hidden bg-background p-8">
+	<!-- Background glows -->
+	<div class="pointer-events-none absolute inset-0">
+		<div class="absolute left-1/2 top-1/4 h-[700px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[oklch(0.55_0.25_265)] opacity-[0.04] blur-[140px]"></div>
+		<div class="absolute left-1/4 top-2/3 h-[500px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[oklch(0.55_0.20_300)] opacity-[0.035] blur-[120px]"></div>
+		<div class="absolute right-1/4 top-1/2 h-[400px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[oklch(0.55_0.15_200)] opacity-[0.025] blur-[100px]"></div>
+	</div>
 
-<div class="app" class:dark={darkMode}>
-	<!-- Top bar -->
-	<header class="topbar">
-		<div class="logo">Zenji</div>
-		<div class="notebook-title">
-			<input type="text" bind:value={activeNotebook} placeholder="Untitled Notebook" />
+	<!-- Brand mark -->
+	<div class="relative animate-in fade-in slide-in-from-left-2 duration-700">
+		<span class="bg-gradient-to-r from-[oklch(0.75_0.15_265)] via-foreground to-foreground bg-clip-text text-xl font-bold uppercase tracking-[0.25em] text-transparent">Zenji</span>
+	</div>
+
+	<div class="flex flex-1 items-center justify-center">
+	<div class="w-full max-w-2xl space-y-12">
+		<!-- Header -->
+		<div class="text-center">
+			<h1 class="animate-fade-up-blur text-5xl font-bold tracking-tight text-foreground">Notebook</h1>
+			<p class="animate-fade-up-blur text-base text-muted-foreground [animation-delay:200ms] mt-3">Choose a workspace to get started</p>
 		</div>
-		<div class="actions">
-			<button>Kernel: Idle ▼</button>
-			<button>Restart</button>
-			<button>Interrupt</button>
-			<button on:click={() => (darkMode = !darkMode)}>Toggle Theme</button>
-		</div>
-	</header>
 
-	<!-- Main layout: sidebar + editor area -->
-	<div class="main">
-		<!-- Left sidebar (file tree / sessions placeholder) -->
-		<aside class="sidebar">
-			<h3>Notebooks</h3>
-			<ul>
-				<li class="active">My First Notebook</li>
-				<li>Analysis 2026</li>
-				<li>Experiments</li>
-			</ul>
+		{#if browsing}
+			<DirectoryBrowser
+				onSelect={(path) => {
+					browsing = false;
+					openLocation(path);
+				}}
+				onCancel={() => (browsing = false)}
+			/>
+		{:else}
+			<div class="space-y-8">
+				<!-- Browse button -->
+				<button class="group/browse relative w-full cursor-pointer rounded-xl p-px text-left bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent transition-all hover:from-[oklch(0.65_0.18_265_/_0.3)] hover:via-[oklch(0.55_0.15_300_/_0.15)] hover:to-transparent" onclick={() => (browsing = true)}>
+					<div class="rounded-[11px] bg-card p-6 transition-colors group-hover/browse:bg-[oklch(0.22_0.005_260)]">
+						<div class="flex items-center gap-4">
+							<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.55_0.25_265_/_0.1)] transition-colors group-hover/browse:bg-[oklch(0.55_0.25_265_/_0.15)]">
+								<FolderOpen class="h-5 w-5 text-[oklch(0.75_0.15_265)]" />
+							</div>
+							<div>
+								<p class="text-base font-medium text-foreground">Browse directories</p>
+								<p class="text-sm text-muted-foreground">Navigate to a folder to open</p>
+							</div>
+						</div>
+					</div>
+				</button>
 
-			<h3>Sessions</h3>
-			<ul>
-				<li>Python 3 (idle)</li>
-				<li>R session</li>
-			</ul>
-
-			<button class="new">+ New Notebook</button>
-		</aside>
-
-		<!-- Main notebook content area -->
-		<main class="notebook">
-			<!-- Toolbar above cells -->
-			<div class="cell-toolbar">
-				<button>+ Code</button>
-				<button>+ Markdown</button>
-				<button>Run All</button>
+				<!-- Recents -->
+				{#if recents.length > 0}
+					<div>
+						<div class="mb-3 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
+							<Clock class="h-4 w-4" />
+							Recent locations
+						</div>
+						<div class="overflow-hidden rounded-xl border border-white/[0.06] bg-card">
+							{#each recents as path, i}
+								{#if i > 0}
+									<Separator />
+								{/if}
+								<button
+									class="flex w-full items-center gap-3 px-5 py-3.5 text-sm text-foreground/80 transition-colors hover:bg-white/[0.04] hover:text-foreground"
+									onclick={() => openLocation(path)}
+								>
+									<Folder class="h-4 w-4 text-[oklch(0.75_0.15_265)]" />
+									<span class="truncate">{path}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
-
-			<!-- Example cells -->
-			<div class="cell code">
-				<div class="cell-gutter">In [1]</div>
-				<div class="cell-editor">
-					<pre><code
-							># Simple example
-print("Hello from future notebook")
-import numpy as np
-np.random.rand(5)</code
-						></pre>
-				</div>
-				<div class="cell-run">▶</div>
-			</div>
-
-			<div class="cell output">
-				<div class="cell-gutter">Out [1]</div>
-				<pre class="output-text">Hello from future notebook
-array([0.42, 0.72, 0.0001, 0.3, 0.15])</pre>
-			</div>
-
-			<div class="cell markdown">
-				<div class="cell-gutter"></div>
-				<div class="cell-editor">
-					<h1>Welcome to Zenji</h1>
-					<p>
-						This is a markdown cell. You can write **bold**, *italic*, lists, LaTeX $E=mc^2$, etc.
-					</p>
-				</div>
-			</div>
-
-			<!-- Empty cell placeholder -->
-			<div class="cell empty">
-				<div class="cell-gutter">+</div>
-				<div class="cell-editor placeholder">Click to add code or markdown…</div>
-			</div>
-		</main>
+		{/if}
+	</div>
 	</div>
 </div>
-
-<style>
-	:global(:root) {
-		--bg: #ffffff;
-		--text: #1a1a1a;
-		--sidebar-bg: #f8f9fa;
-		--cell-bg: #fff;
-		--border: #e0e0e0;
-	}
-	:global(.dark) {
-		--bg: #121212;
-		--text: #e0e0e0;
-		--sidebar-bg: #1e1e1e;
-		--cell-bg: #1e1e1e;
-		--border: #333;
-	}
-
-	.app {
-		height: 100vh;
-		display: flex;
-		flex-direction: column;
-		background: var(--bg);
-		color: var(--text);
-		font-family: system-ui, sans-serif;
-	}
-
-	.topbar {
-		height: 48px;
-		background: var(--sidebar-bg);
-		border-bottom: 1px solid var(--border);
-		display: flex;
-		align-items: center;
-		padding: 0 1rem;
-		gap: 1rem;
-	}
-	.logo {
-		font-weight: bold;
-		font-size: 1.2rem;
-	}
-	.notebook-title input {
-		background: transparent;
-		border: none;
-		font-size: 1.1rem;
-		flex: 1;
-		color: inherit;
-	}
-	.actions {
-		display: flex;
-		gap: 0.5rem;
-	}
-	.actions button {
-		background: var(--border);
-		border: none;
-		padding: 0.4rem 0.8rem;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-
-	.main {
-		flex: 1;
-		display: flex;
-		overflow: hidden;
-	}
-
-	.sidebar {
-		width: 240px;
-		background: var(--sidebar-bg);
-		border-right: 1px solid var(--border);
-		padding: 1rem;
-		overflow-y: auto;
-	}
-	.sidebar h3 {
-		margin: 1.5rem 0 0.5rem;
-		font-size: 0.9rem;
-		color: gray;
-	}
-	.sidebar ul {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.sidebar li {
-		padding: 0.5rem;
-		cursor: pointer;
-		border-radius: 4px;
-	}
-	.sidebar li:hover,
-	.sidebar li.active {
-		background: rgba(100, 100, 100, 0.1);
-	}
-	.new {
-		margin-top: 1rem;
-		width: 100%;
-		padding: 0.6rem;
-		background: #0066cc;
-		color: white;
-		border: none;
-		border-radius: 4px;
-	}
-
-	.notebook {
-		flex: 1;
-		padding: 1rem;
-		overflow-y: auto;
-	}
-	.cell-toolbar {
-		display: flex;
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-	}
-	.cell {
-		margin-bottom: 1.5rem;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		background: var(--cell-bg);
-		position: relative;
-	}
-	.cell-gutter {
-		position: absolute;
-		left: -60px;
-		top: 8px;
-		color: gray;
-		font-size: 0.85rem;
-		width: 50px;
-		text-align: right;
-	}
-	.cell-editor {
-		padding: 1rem;
-		font-family: 'SF Mono', 'Consolas', monospace;
-		white-space: pre-wrap;
-	}
-	.cell.code .cell-editor {
-		background: rgba(0, 0, 0, 0.03);
-		border-radius: 4px;
-	}
-	.output-text {
-		background: rgba(0, 100, 0, 0.08);
-		padding: 1rem;
-		border-radius: 4px;
-	}
-	.placeholder {
-		color: gray;
-		font-style: italic;
-	}
-
-	.cell-run {
-		position: absolute;
-		right: 8px;
-		top: 8px;
-		font-size: 1.2rem;
-		color: #0066cc;
-		cursor: pointer;
-	}
-</style>

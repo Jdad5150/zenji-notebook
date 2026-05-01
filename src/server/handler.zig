@@ -11,17 +11,20 @@ const static_assets = @import("static_assets");
 const Config = @import("./server.zig").Config;
 
 pub fn indexHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
-    if (ctx.dev) {
-        const file = try std.fs.cwd().openFile("src/frontend/build/index.html", .{});
-        defer file.close();
-        res.status = 200;
-        res.content_type = .HTML;
-        res.body = try file.readToEndAlloc(req.arena, 1024 * 1024 * 10);
-    } else {
-        res.status = 200;
-        res.content_type = .HTML;
-        res.body = static_assets.assets.@"index.html";
+    _ = ctx;
+    _ = req;
+    res.status = 200;
+    res.content_type = .HTML;
+    inline for (@typeInfo(@TypeOf(static_assets.assets)).@"struct".fields) |field| {
+        if (comptime std.mem.eql(u8, field.name, "index.html")) {
+            res.body = @field(static_assets.assets, field.name);
+            return;
+        }
     }
+    res.body =
+        "<html><body><h1>Zenji Notebook</h1>" ++
+        "<p>No frontend assets found. Run <code>bun run build</code> " ++
+        "inside <code>src/frontend/</code> then <code>zig build</code>.</p></body></html>";
 }
 
 // GET /api/

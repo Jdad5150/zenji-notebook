@@ -14,6 +14,7 @@ const httpz = @import("httpz");
 const routerz = @import("./router.zig");
 const middleware = @import("middleware.zig");
 const tokenz = @import("../auth/token.zig").Token;
+const Kernel = @import("../kernel/kernel.zig").Kernel;
 
 const HttpServer = httpz.Server(*const Config);
 
@@ -32,11 +33,20 @@ pub const Config = struct {
     port: u16 = 8888,
     token: ?[]const u8 = null,
     dev: bool = false,
-    no_auth: bool = false,
+    no_auth: bool = true,
+    /// Set by startServer from the runtime Io — handlers use this for file I/O.
+    io: std.Io = undefined,
 };
 
-pub fn startServer(allocator: std.mem.Allocator, config: Config) !void {
-    var server = try httpz.Server(*const Config).init(allocator, .{ .address = .localhost(config.port) }, &config);
+pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !void {
+    var cfg = config;
+    cfg.io = io;
+
+    var kernel = Kernel.init(.python, allocator);
+    defer kernel.deinit();
+    log.info("Python kernel started", .{});
+
+    var server = try httpz.Server(*const Config).init(io, allocator, .{ .address = .localhost(cfg.port) }, &cfg);
     defer server.deinit();
     const logger = try server.middleware(middleware.Logger, .{});
 
@@ -45,11 +55,11 @@ pub fn startServer(allocator: std.mem.Allocator, config: Config) !void {
 
     const auth = try server.middleware(middleware.Auth, .{
         .token = &tok,
-        .no_auth = config.no_auth,
+        .no_auth = cfg.no_auth,
     });
 
     const router = try server.router(.{});
-    if (config.dev) {
+    if (cfg.dev) {
         const cors = try server.middleware(httpz.middleware.Cors, .{
             .origin = "http://localhost:5173",
         });
@@ -70,6 +80,6 @@ pub fn startServer(allocator: std.mem.Allocator, config: Config) !void {
     const thread = try std.Thread.spawn(.{}, signalThread, .{&server});
     thread.detach();
 
-    std.debug.print("Zenji-notebook listening on \x1b]8;;http://localhost:{d}/?token={s}\x1b\\http://localhost:{d}/?token={s}\x1b]8;;\x1b\\\n", .{ config.port, tok.token, config.port, tok.token });
+    std.debug.print("Zenji-notebook listening on \x1b]8;;http://localhost:{d}/?token={s}\x1b\\http://localhost:{d}/?token={s}\x1b]8;;\x1b\\\n", .{ cfg.port, tok.token, cfg.port, tok.token });
     try server.listen();
 }

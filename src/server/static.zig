@@ -7,8 +7,7 @@
 //!
 //! In dev mode, assets are served from src/frontend/build/ on disk instead of
 //! the embedded binary. Run `vite build --watch` alongside the server and
-//! manually reload the browser. True HMR (proxying to the Vite dev server) is
-//! not yet implemented.
+//! manually reload the browser.
 
 const std = @import("std");
 const httpz = @import("httpz");
@@ -21,29 +20,38 @@ pub fn serveStaticAsset(ctx: *const Config, req: *httpz.Request, res: *httpz.Res
     const key = if (raw.len > 0 and raw[0] == '/') raw[1..] else raw;
 
     if (ctx.dev) {
-        // No file extension = SPA route, serve index.html from disk
+        const cwd = std.Io.Dir.cwd();
+
+        // No file extension = SPA route, serve index.html from disk.
         if (std.mem.lastIndexOfScalar(u8, key, '.') == null) {
-            const file = try std.fs.cwd().openFile("src/frontend/build/index.html", .{});
-            defer file.close();
+            const file = try cwd.openFile(ctx.io, "src/frontend/build/index.html", .{});
+            defer file.close(ctx.io);
+            var buf: [8192]u8 = undefined;
+            var fr = file.reader(ctx.io, &buf);
+            const size = try fr.getSize();
             res.status = 200;
             res.content_type = .HTML;
-            res.body = try file.readToEndAlloc(req.arena, 1024 * 1024 * 10);
+            res.body = try fr.interface.readAlloc(req.arena, @intCast(size));
             return;
         }
 
-        // Has extension = actual asset, serve from disk
+        // Has extension = actual asset, serve from disk.
         const path = try std.fmt.allocPrint(req.arena, "src/frontend/build/{s}", .{key});
-        const file = std.fs.cwd().openFile(path, .{}) catch {
+        if (cwd.openFile(ctx.io, path, .{})) |file| {
+            defer file.close(ctx.io);
+            var buf: [8192]u8 = undefined;
+            var fr = file.reader(ctx.io, &buf);
+            const size = try fr.getSize();
+            res.status = 200;
+            res.content_type = mime.contentTypeForPath(key);
+            res.body = try fr.interface.readAlloc(req.arena, @intCast(size));
+        } else |_| {
             res.status = 404;
-            return;
-        };
-        defer file.close();
-        res.status = 200;
-        res.content_type = mime.contentTypeForPath(key);
-        res.body = try file.readToEndAlloc(req.arena, 1024 * 1024 * 10);
+        }
         return;
     }
 
+    // Production: serve from embedded assets.
     inline for (@typeInfo(@TypeOf(static_assets.assets)).@"struct".fields) |field| {
         if (std.mem.eql(u8, field.name, key)) {
             res.status = 200;
@@ -53,8 +61,17 @@ pub fn serveStaticAsset(ctx: *const Config, req: *httpz.Request, res: *httpz.Res
         }
     }
 
-    // SPA fallback: serve index.html for any unmatched path
+    // SPA fallback: serve index.html for any unmatched path.
     res.status = 200;
     res.content_type = .HTML;
-    res.body = static_assets.assets.@"index.html";
+    inline for (@typeInfo(@TypeOf(static_assets.assets)).@"struct".fields) |field| {
+        if (comptime std.mem.eql(u8, field.name, "index.html")) {
+            res.body = @field(static_assets.assets, field.name);
+            return;
+        }
+    }
+    res.body =
+        "<html><body><h1>Zenji Notebook</h1>" ++
+        "<p>No frontend assets found. Run <code>bun run build</code> " ++
+        "inside <code>src/frontend/</code> then <code>zig build</code>.</p></body></html>";
 }

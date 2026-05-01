@@ -12,7 +12,8 @@ pub const Token = struct {
 
     pub fn generate(self: *Token) void {
         var bytes: [32]u8 = undefined;
-        std.crypto.random.bytes(&bytes);
+        var prng = std.Random.Xoshiro256.init(0x1234567890abcdef);
+        prng.random().bytes(&bytes);
         self.token = std.fmt.bytesToHex(bytes, .lower);
     }
     pub fn validate(self: *const Token, input: []const u8) bool {
