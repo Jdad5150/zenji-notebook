@@ -9,6 +9,9 @@ const httpz = @import("httpz");
 
 const static_assets = @import("static_assets");
 const Config = @import("./server.zig").Config;
+const executeApi = @import("../api/execute.zig");
+const contentsApi = @import("../api/contents.zig");
+const notebookApi = @import("../api/notebook.zig");
 
 pub fn indexHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
     _ = ctx;
@@ -25,6 +28,26 @@ pub fn indexHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Respons
         "<html><body><h1>Zenji Notebook</h1>" ++
         "<p>No frontend assets found. Run <code>bun run build</code> " ++
         "inside <code>src/frontend/</code> then <code>zig build</code>.</p></body></html>";
+}
+
+// GET /api/contents?path=<dir>
+pub fn contentsListHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return contentsApi.handle(ctx, req, res);
+}
+
+// GET /api/notebook?path=<path>
+pub fn notebookGetHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return notebookApi.handle(ctx, req, res);
+}
+
+// PUT /api/notebook?path=<path>
+pub fn notebookPutHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return notebookApi.handlePut(ctx, req, res);
+}
+
+// POST /api/execute
+pub fn executeHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return executeApi.handle(ctx, req, res);
 }
 
 // GET /api/

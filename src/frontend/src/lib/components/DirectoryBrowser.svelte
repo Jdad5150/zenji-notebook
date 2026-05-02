@@ -15,14 +15,14 @@
 		onCancel: () => void;
 	} = $props();
 
-	let currentPath = $state('/');
+	let currentPath = $state('.');
 	let entries = $state<DirectoryEntry[]>([]);
 	let loading = $state(false);
 
 	const pathSegments = $derived(
-		currentPath === '/'
-			? ['/']
-			: ['/', ...currentPath.split('/').filter(Boolean)]
+		currentPath === '.'
+			? ['~']
+			: ['~', ...currentPath.split('/').filter(Boolean)]
 	);
 
 	async function navigate(path: string) {
@@ -33,9 +33,16 @@
 	}
 
 	function navigateToBreadcrumb(index: number) {
-		if (index === 0) return navigate('/');
-		const path = '/' + pathSegments.slice(1, index + 1).join('/');
-		navigate(path);
+		if (index === 0) return navigate('.');
+		const segs = currentPath.split('/').filter(Boolean);
+		navigate(segs.slice(0, index).join('/'));
+	}
+
+	function goUp() {
+		if (currentPath === '.') return;
+		const parts = currentPath.split('/');
+		parts.pop();
+		navigate(parts.length === 0 ? '.' : parts.join('/'));
 	}
 
 	function formatSize(bytes?: number): string {
@@ -46,7 +53,7 @@
 	}
 
 	onMount(() => {
-		navigate('/');
+		navigate('.');
 	});
 </script>
 
@@ -61,10 +68,10 @@
 					{/if}
 					<Breadcrumb.Item>
 						{#if i === pathSegments.length - 1}
-							<Breadcrumb.Page>{segment === '/' ? '~' : segment}</Breadcrumb.Page>
+							<Breadcrumb.Page>{segment}</Breadcrumb.Page>
 						{:else}
 							<Breadcrumb.Link onclick={() => navigateToBreadcrumb(i)} class="cursor-pointer">
-								{segment === '/' ? '~' : segment}
+								{segment}
 							</Breadcrumb.Link>
 						{/if}
 					</Breadcrumb.Item>
@@ -86,14 +93,11 @@
 				Empty directory
 			</div>
 		{:else}
-			{#if currentPath !== '/'}
+			{#if currentPath !== '.'}
 				<Button
 					variant="ghost"
 					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm text-muted-foreground"
-					onclick={() => {
-						const parent = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
-						navigate(parent);
-					}}
+					onclick={goUp}
 				>
 					<ChevronUp class="h-4 w-4" />
 					<span>..</span>
@@ -103,15 +107,19 @@
 			{#each entries as entry}
 				<Button
 					variant="ghost"
-					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm {!entry.isDirectory ? 'cursor-default' : ''}"
+					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm {entry.isDirectory ? '' : entry.name.endsWith('.znb') ? 'text-[oklch(0.75_0.15_265)]' : 'text-muted-foreground'}"
 					onclick={() => {
-						if (entry.isDirectory) navigate(entry.path);
+						if (entry.isDirectory) {
+							navigate(entry.path);
+						} else if (entry.name.endsWith('.znb')) {
+							onSelect(entry.path);
+						}
 					}}
 				>
 					{#if entry.isDirectory}
-						<Folder class="h-4 w-4 text-blue-400" />
+						<Folder class="h-4 w-4 text-blue-400 shrink-0" />
 					{:else}
-						<File class="h-4 w-4 text-muted-foreground" />
+						<File class="h-4 w-4 shrink-0 {entry.name.endsWith('.znb') ? 'text-[oklch(0.75_0.15_265)]' : 'text-muted-foreground'}" />
 					{/if}
 					<span class="flex-1 text-left">{entry.name}</span>
 					{#if !entry.isDirectory && entry.size}
@@ -127,9 +135,6 @@
 	<!-- Actions -->
 	<div class="flex items-center justify-between px-4 py-3">
 		<span class="truncate text-xs text-muted-foreground">{currentPath}</span>
-		<div class="flex gap-2">
-			<Button variant="ghost" size="sm" onclick={onCancel}>Cancel</Button>
-			<Button size="sm" onclick={() => onSelect(currentPath)}>Open here</Button>
-		</div>
+		<Button variant="ghost" size="sm" onclick={onCancel}>Cancel</Button>
 	</div>
 </div>

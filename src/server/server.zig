@@ -15,6 +15,8 @@ const routerz = @import("./router.zig");
 const middleware = @import("middleware.zig");
 const tokenz = @import("../auth/token.zig").Token;
 const Kernel = @import("../kernel/kernel.zig").Kernel;
+const Notebook = @import("../notebook/notebook.zig").Notebook;
+const Cell = @import("../notebook/cell.zig").Cell;
 
 const HttpServer = httpz.Server(*const Config);
 
@@ -37,7 +39,30 @@ pub const Config = struct {
     no_auth: bool = true,
     /// Set by startServer from the runtime Io — handlers use this for file I/O.
     io: std.Io = undefined,
+    /// Active kernel — shared across all requests; acquire kernel_mutex before calling execute.
+    kernel: *Kernel = undefined,
+    /// Serialises access to the kernel across concurrent requests.
+    kernel_mutex: *std.Io.Mutex = undefined,
 };
+
+fn createExampleNotebook(io: std.Io, allocator: std.mem.Allocator) !void {
+    const cwd = std.Io.Dir.cwd();
+    if (cwd.openFile(io, "example.znb", .{})) |f| {
+        f.close(io);
+        return;
+    } else |err| if (err != error.FileNotFound) return err;
+
+    var nb = try Notebook.init(allocator, .{ .kernel_type = .python });
+    defer nb.deinit(allocator);
+
+    nb.cells = try allocator.alloc(Cell, 2);
+    nb.cells[0] = try Cell.init(allocator, .code, 0, "print('Hello from Zenji!')");
+    nb.cells[1] = try Cell.init(allocator, .code, 1, "x = 6 * 7\nprint(f'The answer is {x}')");
+    nb.next_cell_id = 2;
+
+    try nb.save(io, "example.znb");
+    log.info("created example.znb", .{});
+}
 
 /// Start the HTTP server and block until SIGINT or SIGTERM is received.
 pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !void {
@@ -46,6 +71,11 @@ pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !vo
 
     var kernel = Kernel.init(.python, allocator);
     defer kernel.deinit();
+    cfg.kernel = &kernel;
+
+    var kernel_mutex = std.Io.Mutex.init;
+    cfg.kernel_mutex = &kernel_mutex;
+
     log.info("Python kernel started", .{});
 
     var server = try httpz.Server(*const Config).init(io, allocator, .{ .address = .localhost(cfg.port) }, &cfg);
@@ -71,6 +101,12 @@ pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !vo
     }
 
     try routerz.registerRoutes(router);
+
+    if (cfg.dev) {
+        createExampleNotebook(io, allocator) catch |err| {
+            log.warn("could not create example.znb: {}", .{err});
+        };
+    }
 
     // Block signals on the main thread before spawning the signal thread,
     // so the OS delivers them to sigwait instead of the default handler.

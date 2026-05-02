@@ -53,12 +53,20 @@ pub const PythonKernel = struct {
         _ = python.PyRun_String("try:\n    import matplotlib\n    matplotlib.use('Agg')\nexcept:\n    pass", python.Py_file_input, globals, globals);
         python.PyErr_Clear(); // matplotlib init can leave stale errors on built-in modules
 
+        // Release the GIL so httpz worker threads can acquire it via PyGILState_Ensure.
+        _ = python.PyEval_SaveThread();
+
         return .{ .globals = globals, .locals = globals, .allocator = allocator };
     }
 
     /// Execute a cell of Python code. Captures stdout, stderr, and matplotlib figures.
     /// The code is sandwiched between capture_setup and capture_teardown before execution.
     pub fn execute(self: *PythonKernel, code: [*:0]const u8) !CellResult {
+        // Acquire the GIL for the current thread. After PyEval_SaveThread() in init(),
+        // the GIL is released — worker threads must re-acquire it before any Python C API call.
+        const gil = python.PyGILState_Ensure();
+        defer python.PyGILState_Release(gil);
+
         const full_code = try std.mem.concatWithSentinel(self.allocator, u8, &.{ capture_setup, "\n", std.mem.span(code), "\n", capture_teardown }, 0);
         defer self.allocator.free(full_code);
 
@@ -214,6 +222,7 @@ pub const PythonKernel = struct {
 
     /// Shut down the CPython interpreter. No kernel methods may be called after this.
     pub fn deinit(_: *PythonKernel) void {
+        _ = python.PyGILState_Ensure();
         python.Py_Finalize();
     }
 };

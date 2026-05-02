@@ -25,7 +25,7 @@
 
 	function openLocation(path: string) {
 		saveRecent(path);
-		goto('/notebook');
+		goto('/notebook?path=' + encodeURIComponent(path));
 	}
 </script>
 

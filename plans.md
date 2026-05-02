@@ -133,14 +133,14 @@ Implement the native binary format. Goal: read a `.znb` from disk, find a cell, 
 
 The first end-to-end test: edit a cell in the frontend, click Run, see output.
 
-- [ ] `POST /api/execute` — body: `{ "path": "...", "cell_id": "..." }`
-- [ ] Read cell source from `.znb`
-- [ ] Pass to `PythonKernel.execute()`
-- [ ] Write text output inline to `.znb`; increment `execution_count`
+- [x] `POST /api/execute` — body: `{ "path": "...", "cell_id": "..." }`
+- [x] Read cell source from `.znb`
+- [x] Pass to `PythonKernel.execute()`
+- [x] Write text output inline to `.znb`; increment `execution_count`
 - [ ] Write image artifacts to sidecar directory (create dir on first write)
-- [ ] Return `200 OK` with updated cell JSON
+- [x] Return `200 OK` with updated cell JSON
 - [ ] Handle execution errors (write error output, still return 200)
-- [ ] Handle file-not-found, cell-not-found
+- [x] Handle file-not-found, cell-not-found
 - [ ] Serve sidecar artifacts: `GET /outputs/:notebook/:cell_id/:index`
 
 ### Phase 5 — Frontend Integration
@@ -150,9 +150,9 @@ The first end-to-end test: edit a cell in the frontend, click Run, see output.
 
 The SvelteKit frontend design exists. It needs to talk to the backend.
 
-- [ ] Open a `.znb` — `GET /api/notebook?path=...` returns full notebook as JSON
-- [ ] Run cell calls `POST /api/execute`, re-renders updated cell from response
-- [ ] Save calls `PUT /api/notebook?path=...`
+- [x] Open a `.znb` — `GET /api/notebook?path=...` returns full notebook as JSON
+- [x] Run cell calls `POST /api/execute`, re-renders updated cell from response
+- [x] Save calls `PUT /api/notebook?path=...`
 - [ ] Image outputs rendered via `<img src="/outputs/...">` (sidecar route)
 - [ ] Execution count display (`[3]:`)
 - [ ] Cell status indicator (idle / running)
