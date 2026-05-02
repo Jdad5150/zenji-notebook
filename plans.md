@@ -122,7 +122,7 @@ Implement the native binary format. Goal: read a `.znb` from disk, find a cell, 
 - [x] `output.zig`, `cell.zig`, `notebook.zig` — in-memory structs with serialize/deserialize
 - [x] Find a cell by ID (`findCell`)
 - [x] Verify `load()` / `save()` work with real files (0.16.0 write API unconfirmed)
-- [ ] Write updated cell output back to disk
+- [x] Write updated cell output back to disk
 - [ ] Handle missing/malformed `.znb` gracefully (file-not-found, invalid magic, bad version)
 - [ ] Path traversal security (no `../` escapes from notebook root)
 
