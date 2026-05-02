@@ -33,6 +33,7 @@ test {
     _ = @import("util/json.zig");
     _ = @import("util/logging.zig");
     _ = @import("util/mime.zig");
+    _ = @import("util/path.zig");
     _ = @import("util/platform.zig");
     _ = @import("util/uuid.zig");
 }

@@ -113,18 +113,18 @@ Text outputs (stdout, stderr, error tracebacks) are stored inline. Binary output
 - [x] Kernel shuts down cleanly on server exit
 
 ### Phase 3 — .znb Format & I/O
-v0.4.0
+*v0.4.0*
 
-**Status: In Progress**
+**Status: Complete**
 
 Implement the native binary format. Goal: read a `.znb` from disk, find a cell, write output back.
 
 - [x] `output.zig`, `cell.zig`, `notebook.zig` — in-memory structs with serialize/deserialize
 - [x] Find a cell by ID (`findCell`)
-- [x] Verify `load()` / `save()` work with real files (0.16.0 write API unconfirmed)
-- [x] Write updated cell output back to disk
-- [ ] Handle missing/malformed `.znb` gracefully (file-not-found, invalid magic, bad version)
-- [ ] Path traversal security (no `../` escapes from notebook root)
+- [x] `load()` / `save()` confirmed working with real files (0.16.0 write API)
+- [x] Write updated cell output back to disk (load → findCell → mutate → save)
+- [x] Handle missing/malformed `.znb` gracefully (file-not-found, invalid magic, bad version)
+- [x] Path traversal security (`util/path.zig` — rejects `..` and absolute paths)
 
 ### Phase 4 — Execute API
 *v0.5.0*
@@ -236,45 +236,52 @@ Import existing Jupyter notebooks; export `.znb` back to `.ipynb` for sharing.
 ```
 src/
 ├── main.zig
-├── c.h                  # #include <Python.h>
-├── types.zig            # CellResult, Variable, Module
-├── assets.zig           # generated — do not edit
+├── c.h                      # #include <Python.h>
+├── types.zig                # CellResult, Variable, Module
+├── assets.zig               # generated — do not edit
 │
 ├── server/
-│   ├── server.zig       # server init, Config, startServer
-│   ├── router.zig       # route registration
-│   ├── handler.zig      # index handler
-│   ├── static.zig       # static asset serving
-│   └── middleware.zig   # logging, auth, CORS
+│   ├── server.zig           # server init, Config, startServer
+│   ├── router.zig           # route registration
+│   ├── handler.zig          # index handler
+│   ├── static.zig           # static asset serving
+│   └── middleware.zig       # logging, auth, CORS
 │
 ├── kernel/
-│   ├── kernel.zig       # Kernel union — dispatches to language backends
-│   ├── pythonkernel.zig # CPython embedding (the real one)
-│   ├── juliakernel.zig  # stub
-│   ├── rkernel.zig      # stub
-│   └── mojokernel.zig   # stub
+│   ├── kernel.zig           # Kernel union — dispatches to language backends
+│   ├── pythonkernel.zig     # CPython embedding (the real one)
+│   ├── juliakernel.zig      # stub
+│   ├── rkernel.zig          # stub
+│   └── mojokernel.zig       # stub
 │
 ├── notebook/
-│   ├── format.zig       # in-memory Notebook, Cell, Output structs
-│   ├── znb.zig          # .znb binary read/write
-│   ├── ipynb.zig        # .ipynb JSON parse/write (Phase 8)
-│   └── convert.zig      # Notebook ↔ ipynb conversion (Phase 8)
+│   ├── notebook.zig         # Notebook — load/save/serialize/deserialize/findCell
+│   ├── cell.zig             # Cell — serialize/deserialize
+│   └── output.zig           # Output — serialize/deserialize
 │
-├── api/
-│   ├── notebook.zig     # GET/PUT /api/notebook
-│   ├── execute.zig      # POST /api/execute
-│   ├── contents.zig     # Contents API handlers
-│   └── outputs.zig      # GET /outputs/:notebook/:cell/:index (sidecar serving)
+├── api/                     # HTTP handler stubs (Phase 4+)
+│   ├── config.zig           # stub
+│   ├── contents.zig         # stub — Contents API (Phase 6)
+│   ├── kernels.zig          # stub
+│   ├── kernelspecs.zig      # stub
+│   └── sessions.zig         # stub
 │
 ├── auth/
-│   └── token.zig        # token generation and validation
+│   ├── token.zig            # token generation and validation
+│   └── cookie.zig           # stub
 │
 └── util/
-    └── mime.zig         # MIME type detection
+    ├── json.zig             # stub
+    ├── logging.zig          # stub
+    ├── mime.zig             # MIME type detection
+    ├── path.zig             # sandbox path validation
+    ├── platform.zig         # stub
+    ├── test_io.zig          # FixedBufferStream for tests
+    └── uuid.zig             # stub
 
-src/frontend/            # SvelteKit app
-├── src/routes/          # pages
-└── src/lib/             # components, stores, utilities
+src/frontend/                # SvelteKit app
+├── src/routes/              # pages
+└── src/lib/                 # components, stores, utilities
 ```
 
 ---

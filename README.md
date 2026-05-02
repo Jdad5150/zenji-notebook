@@ -1,6 +1,6 @@
 # Zenji Notebook
 
-_v0.3.3_
+_v0.4.0_
 
 A Jupyter-compatible notebook server written in Zig with a Svelte frontend. Ships as a single binary. No Python server, no Node runtime, no 500MB of dependencies.
 

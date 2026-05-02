@@ -318,6 +318,50 @@ test "findCell pointer allows mutation" {
     try testing.expectEqual(@as(u32, 5), nb.cells[0].execution_count);
 }
 
+fn writeTmpFile(io: std.Io, path: []const u8, data: []const u8) !void {
+    const cwd = std.Io.Dir.cwd();
+    const file = try cwd.createFile(io, path, .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, data);
+}
+
+test "Notebook load returns error on missing file" {
+    var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+    try testing.expectError(error.FileNotFound, Notebook.load(io, "no_such_file.znb", testing.allocator));
+}
+
+test "Notebook load returns InvalidMagic on bad file" {
+    var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+    const tmp_path = "test_bad_magic.znb";
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
+    try writeTmpFile(io, tmp_path, &[_]u8{ 'W', 'R', 'O', 'N', 'G', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+    try testing.expectError(error.InvalidMagic, Notebook.load(io, tmp_path, testing.allocator));
+}
+
+test "Notebook load returns UnsupportedVersion on bad version" {
+    var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+    const tmp_path = "test_bad_version.znb";
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
+    try writeTmpFile(io, tmp_path, &[_]u8{ 'Z', 'E', 'N', 'J', 'I', 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+    try testing.expectError(error.UnsupportedVersion, Notebook.load(io, tmp_path, testing.allocator));
+}
+
+test "Notebook load returns EndOfStream on truncated file" {
+    var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+    const tmp_path = "test_truncated.znb";
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
+    try writeTmpFile(io, tmp_path, "ZEN"); // valid prefix but truncated
+    try testing.expectError(error.EndOfStream, Notebook.load(io, tmp_path, testing.allocator));
+}
+
 test "Notebook load/save round-trip with real file" {
     var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
     defer threaded.deinit();
@@ -344,4 +388,39 @@ test "Notebook load/save round-trip with real file" {
     try testing.expectEqual(CellType.code, loaded.cells[0].cell_type);
     try testing.expectEqual(@as(u32, 3), loaded.cells[0].execution_count);
     try testing.expectEqualStrings("x = 42", loaded.cells[0].source);
+}
+
+test "Notebook update cell output and save back to disk" {
+    var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    const tmp_path = "test_nb_update.znb";
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
+
+    var nb = try Notebook.init(testing.allocator, .{ .kernel_type = .python });
+    defer nb.deinit(testing.allocator);
+    nb.cells = try testing.allocator.alloc(Cell, 1);
+    nb.cells[0] = try Cell.init(testing.allocator, .code, 0, "print('hello')");
+    nb.next_cell_id = 1;
+    try nb.save(io, tmp_path);
+
+    var loaded = try Notebook.load(io, tmp_path, testing.allocator);
+    defer loaded.deinit(testing.allocator);
+
+    const cell = loaded.findCell(0).?;
+    cell.execution_count = 1;
+    testing.allocator.free(cell.outputs);
+    cell.outputs = try testing.allocator.alloc(Output, 1);
+    cell.outputs[0] = try Output.init(testing.allocator, .stdout, "hello\n");
+    try loaded.save(io, tmp_path);
+
+    var final = try Notebook.load(io, tmp_path, testing.allocator);
+    defer final.deinit(testing.allocator);
+
+    try testing.expectEqual(@as(usize, 1), final.cells.len);
+    try testing.expectEqual(@as(u32, 1), final.cells[0].execution_count);
+    try testing.expectEqual(@as(usize, 1), final.cells[0].outputs.len);
+    try testing.expectEqual(OutputType.stdout, final.cells[0].outputs[0].output_type);
+    try testing.expectEqualStrings("hello\n", final.cells[0].outputs[0].data);
 }
