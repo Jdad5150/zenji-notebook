@@ -119,17 +119,12 @@ v0.4.0
 
 Implement the native binary format. Goal: read a `.znb` from disk, find a cell, write output back.
 
-- [x] `notebook/format.zig` — in-memory `Notebook`, `Cell`, `Output` structs
-- [x] `notebook/znb.zig` — serialize/deserialize `.znb` binary format
-- [ ] Read full notebook from disk into memory
-- [x] Find a cell by ID
+- [x] `output.zig`, `cell.zig`, `notebook.zig` — in-memory structs with serialize/deserialize
+- [x] Find a cell by ID (`findCell`)
+- [x] Verify `load()` / `save()` work with real files (0.16.0 write API unconfirmed)
 - [ ] Write updated cell output back to disk
-- [ ] Create a new blank notebook (`--new <name>` CLI flag)
-- [ ] Sidecar directory creation alongside `.znb`
-- [ ] Serve sidecar artifacts: `GET /outputs/:notebook/:cell_id/:index`
-- [ ] Handle missing/malformed `.znb` gracefully
+- [ ] Handle missing/malformed `.znb` gracefully (file-not-found, invalid magic, bad version)
 - [ ] Path traversal security (no `../` escapes from notebook root)
-- [ ] `--notebook-dir` flag to set the root directory
 
 ### Phase 4 — Execute API
 *v0.5.0*
@@ -141,11 +136,12 @@ The first end-to-end test: edit a cell in the frontend, click Run, see output.
 - [ ] `POST /api/execute` — body: `{ "path": "...", "cell_id": "..." }`
 - [ ] Read cell source from `.znb`
 - [ ] Pass to `PythonKernel.execute()`
-- [ ] Write text output inline to `.znb`; write image artifacts to sidecar
+- [ ] Write text output inline to `.znb`; increment `execution_count`
+- [ ] Write image artifacts to sidecar directory (create dir on first write)
 - [ ] Return `200 OK` with updated cell JSON
 - [ ] Handle execution errors (write error output, still return 200)
 - [ ] Handle file-not-found, cell-not-found
-- [ ] Increment `execution_count` on the cell
+- [ ] Serve sidecar artifacts: `GET /outputs/:notebook/:cell_id/:index`
 
 ### Phase 5 — Frontend Integration
 *0.6.0*
@@ -170,6 +166,8 @@ The SvelteKit frontend design exists. It needs to talk to the backend.
 
 File browser — list directories, open and manage notebooks.
 
+- [ ] `--notebook-dir` flag to set the root directory
+- [ ] `--new <name>` CLI flag to create a blank `.znb`
 - [ ] `GET  /api/contents` — list root directory (`.znb` files + subdirs)
 - [ ] `GET  /api/contents/:path` — file or directory info
 - [ ] `POST /api/contents/:path` — create new `.znb`

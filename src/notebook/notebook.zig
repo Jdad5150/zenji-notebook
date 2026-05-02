@@ -56,8 +56,12 @@ pub const Notebook = struct {
         const file = try cwd.openFile(io, path, .{});
         defer file.close(io);
         var buf: [4096]u8 = undefined;
-        const fr = file.reader(io, &buf);
-        return Notebook.deserialize(fr.interface, allocator);
+        var fr = file.reader(io, &buf);
+        const file_size = try fr.getSize();
+        const content = try fr.interface.readAlloc(allocator, file_size);
+        defer allocator.free(content);
+        var stream = FixedBufferStream{ .buf = content };
+        return Notebook.deserialize(stream.reader(), allocator);
     }
 
     /// Serializes this notebook and writes it to disk, creating or overwriting `path`.
@@ -66,8 +70,8 @@ pub const Notebook = struct {
         const file = try cwd.createFile(io, path, .{});
         defer file.close(io);
         var buf: [4096]u8 = undefined;
-        const fw = file.writer(io, &buf);
-        try self.serialize(fw.interface);
+        var fw = file.writer(io, &buf);
+        try self.serialize(&fw.interface);
         try fw.flush();
     }
 
@@ -312,4 +316,32 @@ test "findCell pointer allows mutation" {
     const cell = nb.findCell(0).?;
     cell.execution_count = 5;
     try testing.expectEqual(@as(u32, 5), nb.cells[0].execution_count);
+}
+
+test "Notebook load/save round-trip with real file" {
+    var threaded = std.Io.Threaded.init(testing.allocator, .{ .environ = std.process.Environ.empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    const tmp_path = "test_nb_roundtrip.znb";
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
+
+    var nb = try Notebook.init(testing.allocator, .{ .kernel_type = .python });
+    defer nb.deinit(testing.allocator);
+    nb.cells = try testing.allocator.alloc(Cell, 1);
+    nb.cells[0] = try Cell.init(testing.allocator, .code, 0, "x = 42");
+    nb.cells[0].execution_count = 3;
+    nb.next_cell_id = 1;
+
+    try nb.save(io, tmp_path);
+
+    var loaded = try Notebook.load(io, tmp_path, testing.allocator);
+    defer loaded.deinit(testing.allocator);
+
+    try testing.expectEqual(Language.python, loaded.meta.kernel_type);
+    try testing.expectEqual(@as(u32, 1), loaded.next_cell_id);
+    try testing.expectEqual(@as(usize, 1), loaded.cells.len);
+    try testing.expectEqual(CellType.code, loaded.cells[0].cell_type);
+    try testing.expectEqual(@as(u32, 3), loaded.cells[0].execution_count);
+    try testing.expectEqualStrings("x = 42", loaded.cells[0].source);
 }
