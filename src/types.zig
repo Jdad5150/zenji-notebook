@@ -1,3 +1,5 @@
+//! Shared result and introspection types returned by all kernel backends.
+
 /// The result of executing a single notebook cell.
 /// Caller is responsible for freeing `figures` slice if non-null.
 pub const CellResult = struct {

@@ -1,18 +1,31 @@
+//! Output type for a single cell execution result.
+//!
+//! Text outputs (stdout, stderr, errors) are stored inline as UTF-8 slices.
+//! Binary outputs (images) are stored as a path fragment into the sidecar
+//! directory — the actual file lives at `.{notebook_name}/{cell_id}/{index}`.
+//! All memory is owned by the Output and freed via deinit.
+
 const std = @import("std");
 const testing = std.testing;
 const FixedBufferStream = @import("../util/test_io.zig").FixedBufferStream;
 
+/// Discriminates the kind of data stored in an Output.
 pub const OutputType = enum(u8) {
     stdout = 0,
     stderr = 1,
+    /// Path fragment into the sidecar directory, e.g. "42/0".
     image_ref = 2,
     err = 3,
 };
 
+/// A single output produced by cell execution.
+///
+/// All string fields are owned slices — free with deinit.
 pub const Output = struct {
     output_type: OutputType,
     data: []u8,
 
+    /// Allocates and copies `data`. Caller must call deinit when done.
     pub fn init(allocator: std.mem.Allocator, output_type: OutputType, data: []const u8) !Output {
         return Output{
             .output_type = output_type,
@@ -20,10 +33,14 @@ pub const Output = struct {
         };
     }
 
+    /// Frees owned data. Must be called before the Output goes out of scope.
     pub fn deinit(self: *Output, allocator: std.mem.Allocator) void {
         allocator.free(self.data);
     }
 
+    /// Writes this output to `writer` in .znb binary format.
+    ///
+    /// Layout: output_type (u8) | data_len (u32 LE) | data bytes.
     pub fn serialize(self: Output, writer: anytype) !void {
         try writer.writeByte(@intFromEnum(self.output_type));
         var len_buf: [4]u8 = undefined;
@@ -32,6 +49,11 @@ pub const Output = struct {
         try writer.writeAll(self.data);
     }
 
+    /// Reads one Output from `reader`. Allocates owned data.
+    ///
+    /// Returns `error.InvalidOutputType` if the type byte is not a known variant.
+    /// Returns `error.EndOfStream` if the stream ends before all data is read.
+    /// Caller must call deinit on the returned Output.
     pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Output {
         const type_byte = try reader.readByte();
         const output_type: OutputType = switch (type_byte) {

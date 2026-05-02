@@ -1,3 +1,5 @@
+//! Language-agnostic kernel dispatcher that routes calls to backend implementations.
+
 const PythonKernel = @import("pythonkernel.zig").PythonKernel;
 const JuliaKernel = @import("juliakernel.zig").JuliaKernel;
 const RKernel = @import("rkernel.zig").RKernel;
@@ -7,10 +9,12 @@ const Variable = @import("../types.zig").Variable;
 const Module = @import("../types.zig").Module;
 const std = @import("std");
 
+/// Errors that can occur when initializing or communicating with a kernel backend.
 pub const KernelError = error{
     InitFailed,
 };
 
+/// Supported notebook kernel languages; stored as u8 in the .znb file header.
 pub const Language = enum(u8) { python = 0, julia = 1, r = 2, mojo = 3 };
 
 /// A language-agnostic kernel interface. All interaction with the underlying

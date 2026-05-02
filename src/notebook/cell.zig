@@ -1,21 +1,34 @@
+//! Cell type representing a single unit of a notebook.
+//!
+//! A cell holds source text and zero or more outputs produced by the last
+//! execution. Outputs are replaced in full on each run — partial updates
+//! are not supported. All memory is owned by the Cell and freed via deinit.
+
 const std = @import("std");
 const testing = std.testing;
 const Output = @import("output.zig").Output;
 const OutputType = @import("output.zig").OutputType;
 const FixedBufferStream = @import("../util/test_io.zig").FixedBufferStream;
 
+/// Discriminates whether a cell contains executable code or markdown text.
 pub const CellType = enum(u8) {
     code = 0,
     markdown = 1,
 };
 
+/// A single cell in a notebook.
+///
+/// `source` and `outputs` are owned slices — free with deinit.
+/// `cell_id` is assigned at creation and never changes, even if the cell
+/// is reordered. It is the stable key used for sidecar artifact paths.
 pub const Cell = struct {
     cell_type: CellType,
     cell_id: u32,
-    execution_count: u32 = 0,
+    execution_count: u32, // 0 = never executed
     source: []u8,
     outputs: []Output,
 
+    /// Creates a cell with empty outputs. Dupes `source` — caller owns the Cell.
     pub fn init(allocator: std.mem.Allocator, cell_type: CellType, cell_id: u32, source: []const u8) !Cell {
         return Cell{
             .cell_type = cell_type,
@@ -26,6 +39,7 @@ pub const Cell = struct {
         };
     }
 
+    /// Frees source, all outputs, and the outputs slice.
     pub fn deinit(self: *Cell, allocator: std.mem.Allocator) void {
         for (self.outputs) |*output| {
             output.deinit(allocator);
@@ -34,6 +48,11 @@ pub const Cell = struct {
         allocator.free(self.source);
     }
 
+    /// Writes this cell to `writer` in .znb binary format.
+    ///
+    /// Layout: cell_type (u8) | cell_id (u32 LE) | execution_count (u32 LE)
+    ///         | source_len (u32 LE) | source bytes
+    ///         | output_count (u8) | outputs...
     pub fn serialize(self: Cell, writer: anytype) !void {
         try writer.writeByte(@intFromEnum(self.cell_type));
 
@@ -55,6 +74,12 @@ pub const Cell = struct {
         }
     }
 
+    /// Reads one Cell from `reader`. Allocates owned source and outputs.
+    ///
+    /// Returns `error.InvalidCellType` if the type byte is not a known variant.
+    /// On partial failure mid-outputs, already-deserialized outputs are freed
+    /// before the error is returned — no leaks on corrupt input.
+    /// Caller must call deinit on the returned Cell.
     pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Cell {
         const type_byte = try reader.readByte();
         const cell_type: CellType = switch (type_byte) {
@@ -185,9 +210,8 @@ test "Cell round-trip empty source" {
 }
 
 test "Cell deserialize rejects invalid cell type" {
-    // Build a byte sequence with an invalid cell type byte
     var buf: [32]u8 = std.mem.zeroes([32]u8);
-    buf[0] = 0xFF; // invalid CellType
+    buf[0] = 0xFF;
     var stream = FixedBufferStream{ .buf = &buf };
     try testing.expectError(error.InvalidCellType, Cell.deserialize(stream.reader(), testing.allocator));
 }

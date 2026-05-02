@@ -76,6 +76,8 @@ Text outputs (stdout, stderr, error tracebacks) are stored inline. Binary output
 ## Phases
 
 ### Phase 0 — Foundation
+*v0.1.0*
+
 **Status: Complete**
 
 - [x] Zig project, build.zig, httpz dependency
@@ -85,6 +87,8 @@ Text outputs (stdout, stderr, error tracebacks) are stored inline. Binary output
 - [x] Dev mode: serve assets from disk for fast iteration
 
 ### Phase 1 — HTTP Server
+*v0.2.0*
+
 **Status: Complete**
 
 - [x] httpz server with configurable port
@@ -98,7 +102,9 @@ Text outputs (stdout, stderr, error tracebacks) are stored inline. Binary output
 - [x] CLI flags: `--port`, `--token`, `--no-auth`, `--dev`
 
 ### Phase 2 — Embedded Kernel
-**Status: In progress**
+*v0.3.0*
+
+**Status: Complete**
 
 - [x] CPython linked via `translate_c` + `src/c.h`
 - [x] `PythonKernel` — execute cells, capture stdout/stderr/figures
@@ -107,14 +113,16 @@ Text outputs (stdout, stderr, error tracebacks) are stored inline. Binary output
 - [x] Kernel shuts down cleanly on server exit
 
 ### Phase 3 — .znb Format & I/O
-**Status: Not started**
+v0.4.0
+
+**Status: In Progress**
 
 Implement the native binary format. Goal: read a `.znb` from disk, find a cell, write output back.
 
 - [x] `notebook/format.zig` — in-memory `Notebook`, `Cell`, `Output` structs
 - [x] `notebook/znb.zig` — serialize/deserialize `.znb` binary format
 - [ ] Read full notebook from disk into memory
-- [ ] Find a cell by ID
+- [x] Find a cell by ID
 - [ ] Write updated cell output back to disk
 - [ ] Create a new blank notebook (`--new <name>` CLI flag)
 - [ ] Sidecar directory creation alongside `.znb`
@@ -124,6 +132,8 @@ Implement the native binary format. Goal: read a `.znb` from disk, find a cell, 
 - [ ] `--notebook-dir` flag to set the root directory
 
 ### Phase 4 — Execute API
+*v0.5.0*
+
 **Status: Not started**
 
 The first end-to-end test: edit a cell in the frontend, click Run, see output.
@@ -138,6 +148,8 @@ The first end-to-end test: edit a cell in the frontend, click Run, see output.
 - [ ] Increment `execution_count` on the cell
 
 ### Phase 5 — Frontend Integration
+*0.6.0*
+
 **Status: Design complete, not wired up**
 
 The SvelteKit frontend design exists. It needs to talk to the backend.
@@ -152,6 +164,8 @@ The SvelteKit frontend design exists. It needs to talk to the backend.
 - [ ] Keyboard shortcuts: Shift+Enter (run + move), Ctrl+Enter (run + stay)
 
 ### Phase 6 — Contents API
+*v0.7.0*
+
 **Status: Not started**
 
 File browser — list directories, open and manage notebooks.
@@ -165,6 +179,8 @@ File browser — list directories, open and manage notebooks.
 - [ ] Path security
 
 ### Phase 7 — Polish
+*v0.8.0*
+
 **Status: Not started**
 
 - [ ] Autosave (debounced, 30s if dirty)
@@ -177,6 +193,8 @@ File browser — list directories, open and manage notebooks.
 - [ ] Handle server disconnection gracefully
 
 ### Phase 8 — .ipynb Interop
+*v0.9.0*
+
 **Status: Not started**
 
 Import existing Jupyter notebooks; export `.znb` back to `.ipynb` for sharing.
@@ -192,6 +210,8 @@ Import existing Jupyter notebooks; export `.znb` back to `.ipynb` for sharing.
 **Reference:** https://nbformat.readthedocs.io/en/latest/format_description.html
 
 ### Phase 9 — Multi-Kernel
+*v0.10.0* 
+
 **Status: Stubs only**
 
 - [ ] Julia kernel backend (`src/kernel/juliakernel.zig`)
@@ -201,6 +221,8 @@ Import existing Jupyter notebooks; export `.znb` back to `.ipynb` for sharing.
 - [ ] Kernel-per-notebook (keyed by file path, for running multiple notebooks)
 
 ### Phase 10 — Packaging
+*v1.0.0*
+
 **Status: Not started**
 
 - [ ] Release build strips debug symbols

@@ -1,3 +1,9 @@
+//! Notebook type — top-level container for a .znb file.
+//!
+//! A Notebook owns its cell slice and all memory beneath it.
+//! load/save handle file I/O; serialize/deserialize handle the binary format.
+//! The .znb binary format is documented in plans.md under "znb Format".
+
 const std = @import("std");
 const testing = std.testing;
 const Cell = @import("cell.zig").Cell;
@@ -10,15 +16,21 @@ const FixedBufferStream = @import("../util/test_io.zig").FixedBufferStream;
 const MAGIC = "ZENJI";
 const VERSION: u8 = 1;
 
+/// Notebook-level metadata stored in the file header.
 pub const NotebookMeta = struct {
     kernel_type: Language,
 };
 
+/// A loaded notebook. Owns all memory — free with deinit.
+///
+/// `next_cell_id` is a monotonic counter; it only increases.
+/// Deleting a cell does not decrement it, ensuring sidecar paths remain stable.
 pub const Notebook = struct {
     meta: NotebookMeta,
-    next_cell_id: u32,
+    next_cell_id: u32, // next ID to assign; never reused
     cells: []Cell,
 
+    /// Creates a blank notebook with no cells. Caller must call deinit.
     pub fn init(allocator: std.mem.Allocator, meta: NotebookMeta) !Notebook {
         return Notebook{
             .meta = meta,
@@ -27,6 +39,7 @@ pub const Notebook = struct {
         };
     }
 
+    /// Frees all cells and the cells slice.
     pub fn deinit(self: *Notebook, allocator: std.mem.Allocator) void {
         for (self.cells) |*cell| {
             cell.deinit(allocator);
@@ -34,6 +47,10 @@ pub const Notebook = struct {
         allocator.free(self.cells);
     }
 
+    /// Reads a .znb file from disk and deserializes it.
+    ///
+    /// Returns `error.InvalidMagic` or `error.UnsupportedVersion` for unrecognized files.
+    /// Caller must call deinit on the returned Notebook.
     pub fn load(io: std.Io, path: []const u8, allocator: std.mem.Allocator) !Notebook {
         const cwd = std.Io.Dir.cwd();
         const file = try cwd.openFile(io, path, .{});
@@ -43,6 +60,7 @@ pub const Notebook = struct {
         return Notebook.deserialize(fr.interface, allocator);
     }
 
+    /// Serializes this notebook and writes it to disk, creating or overwriting `path`.
     pub fn save(self: Notebook, io: std.Io, path: []const u8) !void {
         const cwd = std.Io.Dir.cwd();
         const file = try cwd.createFile(io, path, .{});
@@ -53,6 +71,10 @@ pub const Notebook = struct {
         try fw.flush();
     }
 
+    /// Writes this notebook to `writer` in .znb binary format.
+    ///
+    /// Header layout: magic (5B) | version (u8) | cell_count (u32 LE)
+    ///                | next_cell_id (u32 LE) | kernel_type (u8) | cells...
     pub fn serialize(self: Notebook, writer: anytype) !void {
         try writer.writeAll(MAGIC);
         try writer.writeByte(VERSION);
@@ -72,6 +94,11 @@ pub const Notebook = struct {
         }
     }
 
+    /// Reads and validates a notebook from `reader`. Allocates all owned memory.
+    ///
+    /// Validates magic bytes and version before reading any cells.
+    /// On partial cell failure, already-deserialized cells are freed before returning.
+    /// Caller must call deinit on the returned Notebook.
     pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Notebook {
         var magic: [5]u8 = undefined;
         try reader.readNoEof(&magic);
@@ -112,6 +139,17 @@ pub const Notebook = struct {
             .next_cell_id = next_cell_id,
             .cells = cells,
         };
+    }
+
+    /// Returns a mutable pointer to the cell with `cell_id`, or null if not found.
+    ///
+    /// The pointer is valid until the cells slice is reallocated. Do not store it
+    /// across any operation that modifies the cells slice.
+    pub fn findCell(self: *Notebook, cell_id: u32) ?*Cell {
+        for (self.cells) |*cell| {
+            if (cell.cell_id == cell_id) return cell;
+        }
+        return null;
     }
 };
 
@@ -236,4 +274,42 @@ test "Notebook deserialize rejects invalid kernel type" {
     var buf = [_]u8{ 'Z', 'E', 'N', 'J', 'I', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF };
     var stream = FixedBufferStream{ .buf = &buf };
     try testing.expectError(error.InvalidKernelType, Notebook.deserialize(stream.reader(), testing.allocator));
+}
+
+test "findCell returns pointer to matching cell" {
+    var nb = try Notebook.init(testing.allocator, .{ .kernel_type = .python });
+    defer nb.deinit(testing.allocator);
+    nb.cells = try testing.allocator.alloc(Cell, 2);
+    nb.cells[0] = try Cell.init(testing.allocator, .code, 0, "x = 1");
+    nb.cells[1] = try Cell.init(testing.allocator, .code, 1, "y = 2");
+
+    const found = nb.findCell(1);
+    try testing.expect(found != null);
+    try testing.expectEqualStrings("y = 2", found.?.source);
+}
+
+test "findCell returns null for missing id" {
+    var nb = try Notebook.init(testing.allocator, .{ .kernel_type = .python });
+    defer nb.deinit(testing.allocator);
+    nb.cells = try testing.allocator.alloc(Cell, 1);
+    nb.cells[0] = try Cell.init(testing.allocator, .code, 0, "x = 1");
+
+    try testing.expect(nb.findCell(99) == null);
+}
+
+test "findCell returns null on empty notebook" {
+    var nb = try Notebook.init(testing.allocator, .{ .kernel_type = .python });
+    defer nb.deinit(testing.allocator);
+    try testing.expect(nb.findCell(0) == null);
+}
+
+test "findCell pointer allows mutation" {
+    var nb = try Notebook.init(testing.allocator, .{ .kernel_type = .python });
+    defer nb.deinit(testing.allocator);
+    nb.cells = try testing.allocator.alloc(Cell, 1);
+    nb.cells[0] = try Cell.init(testing.allocator, .code, 0, "x = 1");
+
+    const cell = nb.findCell(0).?;
+    cell.execution_count = 5;
+    try testing.expectEqual(@as(u32, 5), nb.cells[0].execution_count);
 }

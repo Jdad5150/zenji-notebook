@@ -14,6 +14,7 @@ const Token = @import("../auth/token.zig").Token;
 
 const log = std.log.scoped(.request);
 
+/// Logs method, path, status, and elapsed time for every request.
 pub const Logger = struct {
     pub const Config = struct {};
 
@@ -28,6 +29,7 @@ pub const Logger = struct {
     }
 };
 
+/// Enforces token authentication via query param or session cookie.
 pub const Auth = struct {
     token: *const Token,
     no_auth: bool,

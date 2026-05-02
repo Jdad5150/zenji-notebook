@@ -1,3 +1,5 @@
+//! CPython kernel backend — executes code via the embedded interpreter.
+
 const std = @import("std");
 const python = @import("c");
 const CellResult = @import("../types.zig").CellResult;

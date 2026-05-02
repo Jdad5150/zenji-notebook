@@ -1,5 +1,7 @@
 # Zenji Notebook
 
+_v0.3.3_
+
 A Jupyter-compatible notebook server written in Zig with a Svelte frontend. Ships as a single binary. No Python server, no Node runtime, no 500MB of dependencies.
 
 ## Why
@@ -13,11 +15,13 @@ Zenji replaces the server, the frontend, and the kernel. CPython is embedded dir
 Early development. This is not ready for daily use yet.
 
 What works:
+
 - HTTP server with token auth and dev/prod static file serving
 - SvelteKit frontend embedded in the binary at build time
 - CPython embedded directly — kernel starts with the server, idles until needed
 
 What's next:
+
 - Notebook file I/O (reading/writing `.ipynb`)
 - `POST /api/execute` — run a cell, write output back to the file
 - File browser API

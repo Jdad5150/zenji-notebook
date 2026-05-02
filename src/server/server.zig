@@ -29,6 +29,7 @@ fn signalThread(server: *HttpServer) void {
     log.info("shutting down (signal {d})", .{sig});
     server.stop();
 }
+/// Server configuration passed in from the CLI and propagated to all handlers.
 pub const Config = struct {
     port: u16 = 8888,
     token: ?[]const u8 = null,
@@ -38,6 +39,7 @@ pub const Config = struct {
     io: std.Io = undefined,
 };
 
+/// Start the HTTP server and block until SIGINT or SIGTERM is received.
 pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !void {
     var cfg = config;
     cfg.io = io;

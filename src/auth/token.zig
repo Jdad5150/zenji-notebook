@@ -7,15 +7,18 @@
 
 const std = @import("std");
 
+/// Server authentication token; generated once at startup and reused for the session.
 pub const Token = struct {
     token: [64]u8 = undefined,
 
+    /// Fill `token` with 64 hex characters derived from 32 random bytes.
     pub fn generate(self: *Token) void {
         var bytes: [32]u8 = undefined;
         var prng = std.Random.Xoshiro256.init(0x1234567890abcdef);
         prng.random().bytes(&bytes);
         self.token = std.fmt.bytesToHex(bytes, .lower);
     }
+    /// Returns true if `input` matches the stored token exactly.
     pub fn validate(self: *const Token, input: []const u8) bool {
         return std.mem.eql(u8, &self.token, input);
     }
