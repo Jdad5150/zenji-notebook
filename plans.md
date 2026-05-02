@@ -14,14 +14,62 @@ Browser (SvelteKit app, served as static files)
 Zig Server Process
     ├── httpz HTTP server
     ├── PythonKernel (embedded CPython via translate_c)
-    └── Notebook I/O (reads/writes .ipynb on disk)
+    └── Notebook I/O (reads/writes .znb on disk)
 ```
 
-**Execution flow:** browser sends `POST /api/execute { path, cell_id }` → server reads cell source from `.ipynb` file → kernel executes → server writes output back to file → `200 OK` → frontend re-parses file and re-renders.
+**Execution flow:** browser sends `POST /api/execute { path, cell_id }` → server reads cell source from `.znb` file → kernel executes → server writes output back to file → `200 OK` → frontend re-renders from response.
 
-The `.ipynb` file is the source of truth. The server never pushes data to the frontend unprompted.
+The `.znb` file is the source of truth. The server never pushes data to the frontend unprompted.
+
+**Single notebook (V1):** Only one notebook is open at a time. The single global kernel serves whichever notebook is currently loaded. Multiple notebooks can be run simultaneously by launching multiple server instances on different ports.
 
 **Multi-language:** Julia, R, and Mojo kernel stubs exist in `src/kernel/`. Only Python is implemented. Other languages will be added later — likely also as embedded runtimes rather than ZMQ subprocesses.
+
+---
+
+## .znb Format
+
+`.znb` is Zenji's native binary notebook format. It is compact, fixed-layout, and directly mappable to Zig structs. Image and rich outputs are **not** stored in the file — they live in a sidecar directory `.{notebook_name}/` next to the `.znb` file. The `.znb` stores only a reference (the cell ID + output index) that the frontend uses to fetch the artifact via a static file route.
+
+**On-disk layout:**
+
+```
+my_analysis.znb          — source of truth: code, structure, text outputs
+.my_analysis/            — execution cache: image/rich output artifacts
+    {cell_id}/
+        0.png
+        1.png
+        ...
+```
+
+The sidecar directory is ephemeral. If an artifact is missing, the frontend skips it and marks the output as stale — a re-run recreates it. Clearing all outputs is `rm -rf .my_analysis/`.
+
+**Binary format:**
+
+```
+[NOTEBOOK HEADER]
+magic:         u8[5]   "ZENJI"
+version:       u8      (currently 1)
+cell_count:    u32
+next_cell_id:  u32     monotonic counter — never reused, ensures stable sidecar paths
+
+[CELL]  × cell_count
+cell_type:         u8      0=code, 1=markdown
+cell_id:           u32     stable, assigned at creation
+execution_count:   u32     0 = never executed
+source_len:        u32
+source:            u8[source_len]   raw UTF-8
+output_count:      u8      (most cells have 0–3 outputs)
+
+  [OUTPUT]  × output_count
+  output_type:   u8      0=stdout, 1=stderr, 2=image_ref, 3=error
+  output_len:    u32
+  output:        u8[output_len]
+                   stdout/stderr/error → raw UTF-8 text
+                   image_ref → "{cell_id}/{index}" path fragment into sidecar dir
+```
+
+Text outputs (stdout, stderr, error tracebacks) are stored inline. Binary outputs (images, rich data) are stored as a path reference pointing into the sidecar directory.
 
 ---
 
@@ -57,22 +105,23 @@ The `.ipynb` file is the source of truth. The server never pushes data to the fr
 - [x] `Kernel` union dispatch (`src/kernel/kernel.zig`)
 - [x] Kernel starts with the server, idles until needed
 - [x] Kernel shuts down cleanly on server exit
-- [ ] Kernel-per-notebook (currently one global kernel)
 
-### Phase 3 — Notebook I/O
+### Phase 3 — .znb Format & I/O
 **Status: Not started**
 
-Read and write `.ipynb` files (nbformat v4).
+Implement the native binary format. Goal: read a `.znb` from disk, find a cell, write output back.
 
-- [ ] Parse `.ipynb` JSON into Zig structs
-- [ ] Find a cell by ID within a notebook
-- [ ] Write cell output back to `.ipynb` (stdout, stderr, display_data, error)
-- [ ] Handle notebook metadata
-- [ ] Handle missing/malformed notebooks gracefully
+- [x] `notebook/format.zig` — in-memory `Notebook`, `Cell`, `Output` structs
+- [x] `notebook/znb.zig` — serialize/deserialize `.znb` binary format
+- [ ] Read full notebook from disk into memory
+- [ ] Find a cell by ID
+- [ ] Write updated cell output back to disk
+- [ ] Create a new blank notebook (`--new <name>` CLI flag)
+- [ ] Sidecar directory creation alongside `.znb`
+- [ ] Serve sidecar artifacts: `GET /outputs/:notebook/:cell_id/:index`
+- [ ] Handle missing/malformed `.znb` gracefully
 - [ ] Path traversal security (no `../` escapes from notebook root)
 - [ ] `--notebook-dir` flag to set the root directory
-
-**Notebook format reference:** https://nbformat.readthedocs.io/en/latest/format_description.html
 
 ### Phase 4 — Execute API
 **Status: Not started**
@@ -80,66 +129,78 @@ Read and write `.ipynb` files (nbformat v4).
 The first end-to-end test: edit a cell in the frontend, click Run, see output.
 
 - [ ] `POST /api/execute` — body: `{ "path": "...", "cell_id": "..." }`
-- [ ] Read cell source from file
+- [ ] Read cell source from `.znb`
 - [ ] Pass to `PythonKernel.execute()`
-- [ ] Write output back to file (outputs array in the cell)
+- [ ] Write text output inline to `.znb`; write image artifacts to sidecar
 - [ ] Return `200 OK` with updated cell JSON
-- [ ] Handle execution errors (write error output to file, still return 200)
+- [ ] Handle execution errors (write error output, still return 200)
 - [ ] Handle file-not-found, cell-not-found
+- [ ] Increment `execution_count` on the cell
 
-### Phase 5 — Contents API
-**Status: Not started**
-
-File browser — list directories, open notebooks, create/delete/rename files.
-
-- [ ] `GET  /api/contents` — list root directory
-- [ ] `GET  /api/contents/:path` — file or directory info
-- [ ] `GET  /api/contents/:path?content=1` — file with content
-- [ ] `PUT  /api/contents/:path` — save file
-- [ ] `POST /api/contents/:path` — create file or directory
-- [ ] `DELETE /api/contents/:path` — delete
-- [ ] `PATCH /api/contents/:path` — rename/move
-- [ ] Directory listing (name, type, last_modified)
-- [ ] Notebook read (parse `.ipynb`, return as JSON)
-- [ ] Text file read
-- [ ] Path security
-
-### Phase 6 — Frontend Integration
+### Phase 5 — Frontend Integration
 **Status: Design complete, not wired up**
 
 The SvelteKit frontend design exists. It needs to talk to the backend.
 
-- [ ] File browser calls `GET /api/contents`
-- [ ] Opening a notebook loads from `GET /api/contents/:path?content=1`
-- [ ] Run cell calls `POST /api/execute`, re-parses response
-- [ ] Save calls `PUT /api/contents/:path`
-- [ ] Execution count display
+- [ ] Open a `.znb` — `GET /api/notebook?path=...` returns full notebook as JSON
+- [ ] Run cell calls `POST /api/execute`, re-renders updated cell from response
+- [ ] Save calls `PUT /api/notebook?path=...`
+- [ ] Image outputs rendered via `<img src="/outputs/...">` (sidecar route)
+- [ ] Execution count display (`[3]:`)
 - [ ] Cell status indicator (idle / running)
-- [ ] Output rendering: stdout, stderr, images (base64 PNG), errors
+- [ ] Output rendering: stdout, stderr, images, errors
 - [ ] Keyboard shortcuts: Shift+Enter (run + move), Ctrl+Enter (run + stay)
+
+### Phase 6 — Contents API
+**Status: Not started**
+
+File browser — list directories, open and manage notebooks.
+
+- [ ] `GET  /api/contents` — list root directory (`.znb` files + subdirs)
+- [ ] `GET  /api/contents/:path` — file or directory info
+- [ ] `POST /api/contents/:path` — create new `.znb`
+- [ ] `DELETE /api/contents/:path` — delete `.znb` + sidecar
+- [ ] `PATCH /api/contents/:path` — rename/move (moves sidecar too)
+- [ ] Directory listing (name, type, last_modified, size)
+- [ ] Path security
 
 ### Phase 7 — Polish
 **Status: Not started**
 
-- [ ] Autosave (debounced, every 30s if dirty)
+- [ ] Autosave (debounced, 30s if dirty)
 - [ ] Ctrl+S / Cmd+S manual save
 - [ ] "Run All" / "Run All Above" / "Run All Below"
-- [ ] Clear outputs
-- [ ] Interrupt kernel (Py_AddPendingCall + KeyboardInterrupt injection)
+- [ ] Clear outputs (deletes sidecar dir, zeroes output_count on all cells)
+- [ ] Interrupt kernel (`Py_AddPendingCall` + KeyboardInterrupt injection)
 - [ ] Restart kernel
 - [ ] Toast notifications for errors
 - [ ] Handle server disconnection gracefully
 
-### Phase 8 — Multi-Kernel
+### Phase 8 — .ipynb Interop
+**Status: Not started**
+
+Import existing Jupyter notebooks; export `.znb` back to `.ipynb` for sharing.
+
+- [ ] `notebook/ipynb.zig` — parse `.ipynb` JSON (nbformat v4) into in-memory `Notebook`
+- [ ] `notebook/convert.zig` — `Notebook` ↔ `.znb` and `Notebook` ↔ `.ipynb`
+- [ ] `POST /api/import` — upload or path-reference a `.ipynb`, convert to `.znb`
+- [ ] `GET  /api/export?path=...&format=ipynb` — convert `.znb` to `.ipynb` for download
+- [ ] Handle nbformat v3/v4 variance gracefully
+- [ ] Handle the `source` as string-or-array-of-strings quirk
+- [ ] Strip image outputs from `.ipynb` import (require re-run to populate sidecar)
+
+**Reference:** https://nbformat.readthedocs.io/en/latest/format_description.html
+
+### Phase 9 — Multi-Kernel
 **Status: Stubs only**
 
 - [ ] Julia kernel backend (`src/kernel/juliakernel.zig`)
 - [ ] R kernel backend (`src/kernel/rkernel.zig`)
-- [ ] Kernel-per-notebook (keyed by file path)
 - [ ] Kernel picker in the UI
 - [ ] Auto-detect kernel from notebook metadata
+- [ ] Kernel-per-notebook (keyed by file path, for running multiple notebooks)
 
-### Phase 9 — Packaging
+### Phase 10 — Packaging
 **Status: Not started**
 
 - [ ] Release build strips debug symbols
@@ -174,16 +235,16 @@ src/
 │   └── mojokernel.zig   # stub
 │
 ├── notebook/
-│   ├── format.zig       # .ipynb structs and JSON parsing
-│   ├── io.zig           # read/write .ipynb files
-│   └── convert.zig      # output format conversion
+│   ├── format.zig       # in-memory Notebook, Cell, Output structs
+│   ├── znb.zig          # .znb binary read/write
+│   ├── ipynb.zig        # .ipynb JSON parse/write (Phase 8)
+│   └── convert.zig      # Notebook ↔ ipynb conversion (Phase 8)
 │
 ├── api/
+│   ├── notebook.zig     # GET/PUT /api/notebook
+│   ├── execute.zig      # POST /api/execute
 │   ├── contents.zig     # Contents API handlers
-│   ├── kernels.zig      # Kernels API handlers
-│   ├── sessions.zig     # Sessions API handlers
-│   ├── kernelspecs.zig  # KernelSpecs API handlers
-│   └── config.zig       # Config API handler
+│   └── outputs.zig      # GET /outputs/:notebook/:cell/:index (sidecar serving)
 │
 ├── auth/
 │   └── token.zig        # token generation and validation
@@ -212,7 +273,7 @@ zig build
 zig build run -- --dev --no-auth
 
 # In a second terminal, watch the frontend
-cd src/frontend && bun run build --watch
+cd src/frontend && bun run dev
 ```
 
 ---
@@ -221,6 +282,10 @@ cd src/frontend && bun run build --watch
 
 **Why not ZMQ?** The original plan used ZeroMQ to talk to external kernel processes (like Jupyter does). Direct embedding is simpler and faster — one process, no IPC, no connection files, no heartbeat threads. More importantly, this is a custom kernel: CPython is called directly through the C API (`PyRun_String`, `PyDict_*`, etc.), so IPyKernel is not involved at all. Output capture, figure handling, and variable inspection are all implemented in Zig.
 
-**Why not WebSockets?** The execution model is request/response — the browser sends code, the server runs it and updates the file, the browser re-reads. WebSockets would add complexity without a clear benefit at this stage.
+**Why not WebSockets?** The execution model is request/response — the browser sends code, the server runs it, the browser re-renders from the response. WebSockets would add complexity without a clear benefit at this stage.
+
+**Why .znb and not .ipynb?** The `.ipynb` JSON format is verbose, stores binary outputs as base64, and requires parsing the entire document to access a single cell. `.znb` is a compact binary format with a cell offset table, direct binary output storage, and a sidecar directory for image artifacts. Notebooks are used for EDA and presentation — not as version-controlled source of truth — so diffability is not a meaningful concern. `.ipynb` import/export is supported for interoperability.
+
+**Why sidecar for images?** Keeping image artifacts out of the `.znb` file means the notebook file stays small regardless of how many figures a notebook produces. The sidecar is an execution cache: delete it to clear all outputs, lose it and just re-run the cells.
 
 **CPython is temporary-ish.** The embedding approach works well for Python. For Julia and R, the plan is either similar embedding or spawning the runtime and communicating over a simple pipe — not ZMQ.

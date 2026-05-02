@@ -11,7 +11,7 @@ pub const KernelError = error{
     InitFailed,
 };
 
-pub const Language = enum { python, julia, r, mojo };
+pub const Language = enum(u8) { python = 0, julia = 1, r = 2, mojo = 3 };
 
 /// A language-agnostic kernel interface. All interaction with the underlying
 /// interpreter goes through these methods — callers never touch backend types directly.
