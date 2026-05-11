@@ -39,9 +39,7 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          sudo apt-get install -y python3-dev
-          python3 --version
-          find /usr/include -name "Python.h"
+          sudo apt-get install -y python3.14-dev
 
       - name: Build Backend
         run: zig build
