@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Frontend Dependencies
+        run: bun install
+        working-directory: src/frontend
+
+      - name: Lint Frontend
+        run: bun run lint
+        working-directory: src/frontend
+
+      - name: Check Frontend
+        run: bun run check
+        working-directory: src/frontend
+
+      - name: Build Frontend
+        run: bun run build
+        working-directory: src/frontend
+
+      - name: Build Backend
+        run: zig build
+
+      - name: Test
+        run: zig build test

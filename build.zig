@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) !void {
             translate_c.addIncludePath(.{ .cwd_relative = "/usr/local/opt/python3/Frameworks/Python.framework/Headers" });
         },
         else => {
-            translate_c.addIncludePath(.{ .cwd_relative = "/usr/include/python3.12" });
+            translate_c.addIncludePath(.{ .cwd_relative = "/usr/include/python3.14" });
         },
     }
 
@@ -60,7 +60,7 @@ pub fn build(b: *std.Build) !void {
             exe.root_module.linkSystemLibrary("python3", .{});
         },
         else => {
-            exe.root_module.linkSystemLibrary("python3.12", .{});
+            exe.root_module.linkSystemLibrary("python3.14", .{});
         },
     }
 

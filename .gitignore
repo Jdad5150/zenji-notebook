@@ -26,3 +26,4 @@ zig-pkg/
 .vscode/
 .idea/
 .claude
+.deepseek

@@ -15,6 +15,7 @@ pub fn registerRoutes(routerz: anytype) !void {
     routerz.get("/*", staticc.serveStaticAsset, .{});
 
     // Zenji native API
+    routerz.get("/api/variables", handlerz.variablesHandler, .{});
     routerz.get("/api/contents", handlerz.contentsListHandler, .{});
     routerz.get("/api/notebook", handlerz.notebookGetHandler, .{});
     routerz.put("/api/notebook", handlerz.notebookPutHandler, .{});

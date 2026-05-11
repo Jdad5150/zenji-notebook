@@ -26,13 +26,24 @@ pub const Kernel = union(Language) {
     mojo: MojoKernel,
 
     /// Create a new kernel for the given language.
-    pub fn init(language: Language, allocator: std.mem.Allocator) Kernel {
+    pub fn init(language: Language, alloc: std.mem.Allocator) Kernel {
         switch (language) {
-            .python => return .{ .python = PythonKernel.init(allocator) },
-            .r => return .{ .r = RKernel.init(allocator) },
-            .julia => return .{ .julia = JuliaKernel.init(allocator) },
-            .mojo => return .{ .mojo = MojoKernel.init(allocator) },
+            .python => return .{ .python = PythonKernel.init(alloc) },
+            .r => return .{ .r = RKernel.init(alloc) },
+            .julia => return .{ .julia = JuliaKernel.init(alloc) },
+            .mojo => return .{ .mojo = MojoKernel.init(alloc) },
         }
+    }
+
+    /// Returns the allocator used by this kernel — needed by callers
+    /// that must free memory allocated by kernel methods.
+    pub fn allocator(self: *Kernel) std.mem.Allocator {
+        return switch (self.*) {
+            .python => |k| k.allocator,
+            .r => |k| k.allocator,
+            .julia => |k| k.allocator,
+            .mojo => |k| k.allocator,
+        };
     }
 
     /// Execute a cell of code. Returns captured stdout, stderr, and any figures.

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createHighlighter, type Highlighter } from 'shiki';
+	import { createHighlighter, type Highlighter, type BundledLanguage } from 'shiki';
 	import catppuccinMocha from 'shiki/themes/catppuccin-mocha.mjs';
 
 	let {
@@ -19,20 +19,26 @@
 	// for `support.function.builtin.python` that we need to mutate in-place.
 	const patchedTheme = {
 		...catppuccinMocha,
-		tokenColors: (catppuccinMocha.tokenColors ?? []).map((tc) => {
-			const scopes = Array.isArray(tc.scope) ? tc.scope : [tc.scope];
-			if (scopes.includes('support.function.builtin.python')) {
-				return {
-					...tc,
-					scope: scopes.filter((s) => s !== 'support.function.builtin.python'),
-					settings: { ...tc.settings }
-				};
-			}
-			return tc;
-		}).concat({
-			scope: ['support.function.builtin.python'],
-			settings: { foreground: '#89b4fa', fontStyle: 'italic' }
-		})
+		name: catppuccinMocha.name ?? 'catppuccin-mocha',
+		type: (catppuccinMocha.type ?? 'dark') as 'dark' | 'light',
+		tokenColors: (catppuccinMocha.tokenColors ?? [])
+			.map((tc) => {
+				const scopes = Array.isArray(tc.scope) ? tc.scope : [tc.scope];
+				if (scopes.includes('support.function.builtin.python')) {
+					return {
+						...tc,
+						scope: scopes.filter(
+							(s): s is string => s != null && s !== 'support.function.builtin.python'
+						),
+						settings: { ...tc.settings }
+					};
+				}
+				return tc;
+			})
+			.concat({
+				scope: ['support.function.builtin.python'],
+				settings: { foreground: '#89b4fa', fontStyle: 'italic' }
+			})
 	};
 
 	// Shared highlighter — created once, reused across all RenderedCode instances
@@ -52,8 +58,8 @@
 		const highlighter = await getHighlighter();
 
 		const loaded = highlighter.getLoadedLanguages();
-		if (!loaded.includes(language as any)) {
-			await highlighter.loadLanguage(language as any);
+		if (!loaded.includes(language)) {
+			await highlighter.loadLanguage(language as BundledLanguage);
 		}
 
 		html = highlighter.codeToHtml(code, {
@@ -72,6 +78,7 @@
 </script>
 
 {#if html}
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 	<div class="rendered-code">{@html html}</div>
 {:else}
 	<pre class="rendered-code-fallback">{content}</pre>

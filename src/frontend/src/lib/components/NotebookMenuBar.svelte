@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	type MenuItem =
-		| { label: string; shortcut?: string; disabled?: boolean }
-		| 'separator';
+	type MenuItem = { label: string; shortcut?: string; disabled?: boolean } | 'separator';
 
 	type Menu = {
 		label: string;
@@ -129,10 +127,12 @@
 </script>
 
 <div class="flex items-center gap-0 px-4 pb-1" bind:this={menuBarEl}>
-	{#each menus as menu}
+	{#each menus as menu (menu.label)}
 		<div class="relative">
 			<button
-				class="rounded-md px-2.5 py-0.5 text-[13px] transition-colors {openMenu === menu.label ? 'bg-white/[0.08] text-foreground' : 'text-muted-foreground/70 hover:bg-white/[0.06] hover:text-foreground'}"
+				class="rounded-md px-2.5 py-0.5 text-[0.8125rem] transition-colors {openMenu === menu.label
+					? 'bg-white/8 text-foreground'
+					: 'text-muted-foreground/70 hover:bg-white/6 hover:text-foreground'}"
 				onclick={() => toggleMenu(menu.label)}
 				onmouseenter={() => hoverMenu(menu.label)}
 			>
@@ -140,19 +140,27 @@
 			</button>
 
 			{#if openMenu === menu.label}
-				<div class="absolute left-0 top-full z-50 mt-1 min-w-[220px] overflow-hidden rounded-lg border border-white/[0.08] bg-[oklch(0.19_0.015_270)] p-1 shadow-xl shadow-black/30">
-					{#each menu.items as item}
+				<div
+					class="absolute top-full left-0 z-50 mt-1 min-w-55 overflow-hidden rounded-lg border border-white/8 bg-[oklch(0.19_0.015_270)] p-1 shadow-xl shadow-black/30"
+				>
+					{#each menu.items as item (item)}
 						{#if item === 'separator'}
-							<div class="my-1 h-px bg-white/[0.06]"></div>
+							<div class="my-1 h-px bg-white/6"></div>
 						{:else}
 							<button
-								class="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-[13px] transition-colors {item.disabled ? 'text-muted-foreground/30 cursor-default' : 'text-foreground/80 hover:bg-white/[0.06] hover:text-foreground'}"
-								onclick={() => { if (!item.disabled) openMenu = null; }}
+								class="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-[0.8125rem] transition-colors {item.disabled
+									? 'cursor-default text-muted-foreground/30'
+									: 'text-foreground/80 hover:bg-white/6 hover:text-foreground'}"
+								onclick={() => {
+									if (!item.disabled) openMenu = null;
+								}}
 								disabled={item.disabled}
 							>
 								<span>{item.label}</span>
 								{#if item.shortcut}
-									<span class="ml-6 text-[11px] text-muted-foreground/40 font-mono">{item.shortcut}</span>
+									<span class="ml-6 font-mono text-[0.6875rem] text-muted-foreground/40"
+										>{item.shortcut}</span
+									>
 								{/if}
 							</button>
 						{/if}

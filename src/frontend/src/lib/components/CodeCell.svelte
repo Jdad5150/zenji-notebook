@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
+	import {
+		EditorView,
+		keymap,
+		lineNumbers,
+		highlightActiveLine,
+		highlightActiveLineGutter
+	} from '@codemirror/view';
 	import { EditorState } from '@codemirror/state';
 	import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 	import { python } from '@codemirror/lang-python';
@@ -57,13 +63,15 @@
 	});
 
 	onMount(() => {
-		const runKeymap = keymap.of([{
-			key: 'Shift-Enter',
-			run: () => {
-				onrun?.();
-				return true;
+		const runKeymap = keymap.of([
+			{
+				key: 'Shift-Enter',
+				run: () => {
+					onrun?.();
+					return true;
+				}
 			}
-		}]);
+		]);
 
 		const updateListener = EditorView.updateListener.of((update) => {
 			if (update.docChanged) {

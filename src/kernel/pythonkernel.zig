@@ -106,6 +106,9 @@ pub const PythonKernel = struct {
     /// Returned strings are allocator-owned copies (safe after Python GC).
     /// Caller must free the returned slice.
     pub fn getVariables(self: *PythonKernel) ![]const Variable {
+        const gil = python.PyGILState_Ensure();
+        defer python.PyGILState_Release(gil);
+
         var pos: python.Py_ssize_t = 0;
         var key: ?*python.PyObject = null;
         var value: ?*python.PyObject = null;
@@ -164,6 +167,9 @@ pub const PythonKernel = struct {
     /// Filters out underscore-prefixed internal imports.
     /// Caller must free the returned slice.
     pub fn getModules(self: *PythonKernel) ![]const Module {
+        const gil = python.PyGILState_Ensure();
+        defer python.PyGILState_Release(gil);
+
         var pos: python.Py_ssize_t = 0;
         var key: ?*python.PyObject = null;
         var value: ?*python.PyObject = null;

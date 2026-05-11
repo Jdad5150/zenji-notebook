@@ -14,6 +14,7 @@ test {
     // API
     _ = @import("api/config.zig");
     _ = @import("api/contents.zig");
+    _ = @import("api/variables.zig");
     _ = @import("api/kernels.zig");
     _ = @import("api/kernelspecs.zig");
     _ = @import("api/sessions.zig");

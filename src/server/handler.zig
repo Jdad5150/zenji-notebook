@@ -10,6 +10,7 @@ const httpz = @import("httpz");
 const static_assets = @import("static_assets");
 const Config = @import("./server.zig").Config;
 const executeApi = @import("../api/execute.zig");
+const variablesApi = @import("../api/variables.zig");
 const contentsApi = @import("../api/contents.zig");
 const notebookApi = @import("../api/notebook.zig");
 
@@ -48,6 +49,11 @@ pub fn notebookPutHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.R
 // POST /api/execute
 pub fn executeHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
     return executeApi.handle(ctx, req, res);
+}
+
+// GET /api/variables
+pub fn variablesHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return variablesApi.handle(ctx, req, res);
 }
 
 // GET /api/

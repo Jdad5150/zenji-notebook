@@ -5,7 +5,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
-	import { Folder, File, ChevronUp, Loader2 } from '@lucide/svelte';
+	import { Folder, File, ChevronUp, LoaderCircle } from '@lucide/svelte';
 
 	let {
 		onSelect,
@@ -20,9 +20,7 @@
 	let loading = $state(false);
 
 	const pathSegments = $derived(
-		currentPath === '.'
-			? ['~']
-			: ['~', ...currentPath.split('/').filter(Boolean)]
+		currentPath === '.' ? ['~'] : ['~', ...currentPath.split('/').filter(Boolean)]
 	);
 
 	async function navigate(path: string) {
@@ -57,12 +55,12 @@
 	});
 </script>
 
-<div class="flex h-[28rem] flex-col rounded-lg border border-border bg-card">
+<div class="flex h-112 flex-col rounded-lg border border-border bg-card">
 	<!-- Breadcrumb -->
 	<div class="px-4 py-2.5">
 		<Breadcrumb.Root>
 			<Breadcrumb.List>
-				{#each pathSegments as segment, i}
+				{#each pathSegments as segment, i (i)}
 					{#if i > 0}
 						<Breadcrumb.Separator />
 					{/if}
@@ -86,7 +84,7 @@
 	<div class="flex-1 overflow-y-auto">
 		{#if loading}
 			<div class="flex h-full items-center justify-center">
-				<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+				<LoaderCircle class="size-5 animate-spin text-muted-foreground" />
 			</div>
 		{:else if entries.length === 0}
 			<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -99,15 +97,19 @@
 					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm text-muted-foreground"
 					onclick={goUp}
 				>
-					<ChevronUp class="h-4 w-4" />
+					<ChevronUp class="size-4" />
 					<span>..</span>
 				</Button>
 			{/if}
 
-			{#each entries as entry}
+			{#each entries as entry (entry.name)}
 				<Button
 					variant="ghost"
-					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm {entry.isDirectory ? '' : entry.name.endsWith('.znb') ? 'text-[oklch(0.75_0.15_265)]' : 'text-muted-foreground'}"
+					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm {entry.isDirectory
+						? ''
+						: entry.name.endsWith('.znb')
+							? 'text-[oklch(0.75_0.15_265)]'
+							: 'text-muted-foreground'}"
 					onclick={() => {
 						if (entry.isDirectory) {
 							navigate(entry.path);
@@ -117,9 +119,13 @@
 					}}
 				>
 					{#if entry.isDirectory}
-						<Folder class="h-4 w-4 text-blue-400 shrink-0" />
+						<Folder class="size-4 shrink-0 text-blue-400" />
 					{:else}
-						<File class="h-4 w-4 shrink-0 {entry.name.endsWith('.znb') ? 'text-[oklch(0.75_0.15_265)]' : 'text-muted-foreground'}" />
+						<File
+							class="size-4 shrink-0 {entry.name.endsWith('.znb')
+								? 'text-[oklch(0.75_0.15_265)]'
+								: 'text-muted-foreground'}"
+						/>
 					{/if}
 					<span class="flex-1 text-left">{entry.name}</span>
 					{#if !entry.isDirectory && entry.size}

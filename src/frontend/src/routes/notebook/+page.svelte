@@ -30,6 +30,7 @@
 	let kernel = $state('Python');
 	let runtimeStatus = $state<'idle' | 'running' | 'error'>('idle');
 	let activeCellId = $state<number | null>(null);
+	let varsRefreshKey = $state(0);
 	let loadError = $state('');
 	let loading = $state(true);
 
@@ -78,20 +79,22 @@
 		kernel = nb.kernel_type ?? 'python';
 		nextId = nb.next_cell_id ?? 0;
 
-		cells = (nb.cells ?? []).map((c: {
-			cell_id: number;
-			cell_type: string;
-			source: string;
-			execution_count: number;
-			outputs: OutputData[];
-		}) => ({
-			id: c.cell_id,
-			type: c.cell_type === 'markdown' ? 'markdown' : 'code',
-			content: c.source,
-			output: outputsToString(c.outputs ?? []),
-			rendered: c.cell_type === 'markdown',
-			outputs: c.outputs ?? [],
-		}));
+		cells = (nb.cells ?? []).map(
+			(c: {
+				cell_id: number;
+				cell_type: string;
+				source: string;
+				execution_count: number;
+				outputs: OutputData[];
+			}) => ({
+				id: c.cell_id,
+				type: c.cell_type === 'markdown' ? 'markdown' : 'code',
+				content: c.source,
+				output: outputsToString(c.outputs ?? []),
+				rendered: c.cell_type === 'markdown',
+				outputs: c.outputs ?? []
+			})
+		);
 
 		loading = false;
 	});
@@ -111,7 +114,7 @@
 		const res = await fetch('/api/execute', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path: notebookPath, cell_id: id }),
+			body: JSON.stringify({ path: notebookPath, cell_id: id })
 		});
 
 		if (res.ok) {
@@ -120,15 +123,18 @@
 			if (nbRes.ok) {
 				const nb = await nbRes.json();
 				nextId = nb.next_cell_id;
-				cells = nb.cells.map((c: any) => ({
-					id: c.cell_id,
-					type: c.cell_type === 'markdown' ? 'markdown' : 'code',
-					content: c.source,
-					output: outputsToString(c.outputs ?? []),
-					rendered: c.cell_type === 'markdown',
-					outputs: c.outputs ?? [],
-				}));
+				cells = nb.cells.map(
+					(c: { cell_id: number; cell_type: string; source: string; outputs: OutputData[] }) => ({
+						id: c.cell_id,
+						type: c.cell_type === 'markdown' ? 'markdown' : 'code',
+						content: c.source,
+						output: outputsToString(c.outputs ?? []),
+						rendered: c.cell_type === 'markdown',
+						outputs: c.outputs ?? []
+					})
+				);
 				runtimeStatus = 'idle';
+				varsRefreshKey++;
 			} else {
 				runtimeStatus = 'error';
 			}
@@ -180,18 +186,18 @@
 			// Remove this line: path: notebookPath,
 			kernel_type: kernel.toLowerCase(),
 			next_cell_id: nextId,
-			cells: cells.map(c => ({
+			cells: cells.map((c) => ({
 				cell_id: c.id,
 				cell_type: c.type,
 				source: c.content,
-				outputs: c.outputs,
-			})),
+				outputs: c.outputs
+			}))
 		};
 
 		const res = await fetch(`/api/notebook?path=${encodeURIComponent(notebookPath)}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(body),
+			body: JSON.stringify(body)
 		});
 
 		if (!res.ok) {
@@ -214,10 +220,12 @@
 						type="text"
 						bind:value={notebookTitle}
 						aria-label="Notebook title"
-						class="min-w-0 flex-1 truncate bg-transparent text-[16px] font-medium text-foreground outline-none placeholder:text-muted-foreground hover:bg-white/[0.03] focus:bg-white/[0.03] rounded-md px-2 py-1"
+						class="min-w-0 flex-1 truncate rounded-md bg-transparent px-2 py-1 text-base font-medium text-foreground outline-none placeholder:text-muted-foreground hover:bg-white/3 focus:bg-white/3"
 					/>
 				{:else}
-					<span class="min-w-0 flex-1 truncate text-[16px] font-medium text-foreground px-2 py-1">{notebookTitle}</span>
+					<span class="min-w-0 flex-1 truncate px-2 py-1 text-base font-medium text-foreground"
+						>{notebookTitle}</span
+					>
 				{/if}
 			</div>
 			{#if mode === 'edit'}
@@ -244,7 +252,7 @@
 				<div class="flex-1 overflow-y-auto bg-background">
 					{#if loading}
 						<div class="flex h-full items-center justify-center">
-							<Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+							<Loader2 class="size-6 animate-spin text-muted-foreground" />
 						</div>
 					{:else if loadError}
 						<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -271,16 +279,16 @@
 							{/each}
 
 							{#if mode === 'edit'}
-								<div class="flex items-center justify-center gap-2 py-6 ml-10 mr-10">
+								<div class="mr-10 ml-10 flex items-center justify-center gap-2 py-6">
 									<button
-										class="flex items-center gap-1.5 rounded-lg border border-dashed border-white/[0.06] px-4 py-2 text-[13px] text-muted-foreground/50 transition-colors hover:border-white/[0.12] hover:text-foreground"
+										class="flex items-center gap-1.5 rounded-lg border border-dashed border-white/6 px-4 py-2 text-[0.8125rem] text-muted-foreground/50 transition-colors hover:border-white/12 hover:text-foreground"
 										onclick={() => addCell('code')}
 									>
 										<Plus class="h-3.5 w-3.5" />
 										Code
 									</button>
 									<button
-										class="flex items-center gap-1.5 rounded-lg border border-dashed border-white/[0.06] px-4 py-2 text-[13px] text-muted-foreground/50 transition-colors hover:border-white/[0.12] hover:text-foreground"
+										class="flex items-center gap-1.5 rounded-lg border border-dashed border-white/6 px-4 py-2 text-[0.8125rem] text-muted-foreground/50 transition-colors hover:border-white/12 hover:text-foreground"
 										onclick={() => addCell('markdown')}
 									>
 										<Plus class="h-3.5 w-3.5" />
@@ -294,9 +302,18 @@
 			</div>
 
 			{#if mode === 'edit'}
-				<div class="flex shrink-0 flex-col border-l border-border overflow-hidden {dataExplorerOpen ? 'w-72' : 'w-0 border-l-0'} transition-[width] duration-200">
+				<div
+					class="flex shrink-0 flex-col overflow-hidden border-l border-border {dataExplorerOpen
+						? 'w-72'
+						: 'w-0 border-l-0'} transition-[width] duration-200"
+				>
 					{#if dataExplorerOpen}
-						<DataExplorer {tocEntries} plots={[]} onopenplot={() => {}} />
+						<DataExplorer
+							{tocEntries}
+							plots={[]}
+							onopenplot={() => {}}
+							refreshKey={varsRefreshKey}
+						/>
 					{/if}
 				</div>
 			{/if}

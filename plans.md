@@ -129,7 +129,7 @@ Implement the native binary format. Goal: read a `.znb` from disk, find a cell, 
 ### Phase 4 — Execute API
 *v0.5.0*
 
-**Status: Not started**
+**Status: In Progress**
 
 The first end-to-end test: edit a cell in the frontend, click Run, see output.
 
@@ -146,7 +146,7 @@ The first end-to-end test: edit a cell in the frontend, click Run, see output.
 ### Phase 5 — Frontend Integration
 *0.6.0*
 
-**Status: Design complete, not wired up**
+**Status: Design complete, wiring up in progress**
 
 The SvelteKit frontend design exists. It needs to talk to the backend.
 
@@ -168,7 +168,7 @@ File browser — list directories, open and manage notebooks.
 
 - [ ] `--notebook-dir` flag to set the root directory
 - [ ] `--new <name>` CLI flag to create a blank `.znb`
-- [ ] `GET  /api/contents` — list root directory (`.znb` files + subdirs)
+- [x] `GET  /api/contents?path=` — directory listing (name, type, size)
 - [ ] `GET  /api/contents/:path` — file or directory info
 - [ ] `POST /api/contents/:path` — create new `.znb`
 - [ ] `DELETE /api/contents/:path` — delete `.znb` + sidecar
@@ -259,9 +259,12 @@ src/
 │   ├── cell.zig             # Cell — serialize/deserialize
 │   └── output.zig           # Output — serialize/deserialize
 │
-├── api/                     # HTTP handler stubs (Phase 4+)
+├── api/
 │   ├── config.zig           # stub
-│   ├── contents.zig         # stub — Contents API (Phase 6)
+│   ├── contents.zig         # GET /api/contents (directory listing)
+│   ├── execute.zig          # POST /api/execute
+│   ├── notebook.zig         # GET/PUT /api/notebook
+│   ├── variables.zig        # GET /api/variables (kernel namespace)
 │   ├── kernels.zig          # stub
 │   ├── kernelspecs.zig      # stub
 │   └── sessions.zig         # stub
