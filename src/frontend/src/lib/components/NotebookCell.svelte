@@ -35,7 +35,7 @@
 			content: string;
 			output: string;
 			rendered: boolean;
-			plotSrc?: string;
+			plots?: string[];
 		};
 		index: number;
 		isActive: boolean;
@@ -179,29 +179,17 @@
 						</div>
 					{/if}
 
-					<!-- Plot thumbnail -->
-					{#if cell.plotSrc}
-						<div class="mt-2 px-1">
-							<button
-								class="group/plot relative overflow-hidden rounded-lg border border-white/6 transition-all hover:border-white/12 hover:shadow-lg hover:shadow-black/20"
-								onclick={() => onopenplot?.(cell.id)}
-							>
+					<!-- Plot outputs -->
+					{#if cell.plots && cell.plots.length > 0}
+						{#each cell.plots as src, i (i)}
+							<div class="mt-2 px-1">
 								<img
-									src={cell.plotSrc}
-									alt="Plot output"
-									class="block max-h-50 w-full bg-[#1a1b1e] object-contain"
+									src={src}
+									alt="Plot output {i + 1}"
+									class="block max-h-96 rounded-lg object-contain"
 								/>
-								<div
-									class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/plot:bg-black/30"
-								>
-									<div
-										class="rounded-lg bg-black/60 p-2 opacity-0 transition-opacity group-hover/plot:opacity-100"
-									>
-										<Maximize2 class="size-5 text-white" />
-									</div>
-								</div>
-							</button>
-						</div>
+							</div>
+						{/each}
 					{/if}
 				</div>
 

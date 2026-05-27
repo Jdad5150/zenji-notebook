@@ -16,7 +16,7 @@ pub const RKernel = struct {
     }
 
     /// Execute R code. Not yet implemented.
-    pub fn execute(_: *RKernel, _: [*:0]const u8) !CellResult {
+    pub fn execute(_: *RKernel, _: []const u8) !CellResult {
         std.debug.print("R kernel not implemented\n", .{});
         return .{};
     }

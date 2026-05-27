@@ -1,26 +1,28 @@
 //! Shared result and introspection types returned by all kernel backends.
 
 /// The result of executing a single notebook cell.
-/// Caller is responsible for freeing `figures` slice if non-null.
+/// stdout, stderr, and each figure string are allocator-owned — caller must free.
 pub const CellResult = struct {
-    stdout: ?[*:0]const u8 = null,
-    stderr: ?[*:0]const u8 = null,
+    stdout: ?[]const u8 = null,
+    stderr: ?[]const u8 = null,
     /// Base64-encoded PNG images captured from matplotlib figures.
-    figures: ?[]const [*:0]const u8 = null,
+    /// Each string and the slice itself are allocator-owned.
+    figures: ?[][]const u8 = null,
     success: bool = true,
 };
 
-/// A user-defined variable in the kernel's namespace.
-/// All string fields are allocator-owned copies — safe to use after Python objects are freed.
+/// A user-defined variable in the kernel namespace.
+/// All fields are allocator-owned copies.
 pub const Variable = struct {
-    name: [*:0]const u8,
-    value: [*:0]const u8,
-    type_name: [*:0]const u8,
+    name: []const u8,
+    value: []const u8,
+    type_name: []const u8,
 };
 
-/// An imported module visible in the kernel's namespace.
+/// An imported module visible in the kernel namespace.
+/// All fields are allocator-owned copies.
 pub const Module = struct {
-    name: [*:0]const u8,
-    /// File path of the module, or "built-in" for modules without a file.
-    path: [*:0]const u8,
+    name: []const u8,
+    /// File path of the module, or "built-in" for modules without __file__.
+    path: []const u8,
 };

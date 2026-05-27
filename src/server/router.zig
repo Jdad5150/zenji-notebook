@@ -20,6 +20,10 @@ pub fn registerRoutes(routerz: anytype) !void {
     routerz.get("/api/notebook", handlerz.notebookGetHandler, .{});
     routerz.put("/api/notebook", handlerz.notebookPutHandler, .{});
     routerz.post("/api/execute", handlerz.executeHandler, .{});
+    routerz.get("/api/environment", handlerz.environmentGetHandler, .{});
+    routerz.post("/api/environment", handlerz.environmentPostHandler, .{});
+    routerz.get("/api/home", handlerz.homeHandler, .{});
+    routerz.get("/outputs", handlerz.outputsHandler, .{});
 
     // API version (no auth required)
     routerz.get("/api/", handlerz.versionHandler, .{});

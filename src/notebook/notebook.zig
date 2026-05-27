@@ -52,8 +52,10 @@ pub const Notebook = struct {
     /// Returns `error.InvalidMagic` or `error.UnsupportedVersion` for unrecognized files.
     /// Caller must call deinit on the returned Notebook.
     pub fn load(io: std.Io, path: []const u8, allocator: std.mem.Allocator) !Notebook {
-        const cwd = std.Io.Dir.cwd();
-        const file = try cwd.openFile(io, path, .{});
+        const file = if (path.len > 0 and path[0] == '/')
+            try std.Io.Dir.openFileAbsolute(io, path, .{})
+        else
+            try std.Io.Dir.cwd().openFile(io, path, .{});
         defer file.close(io);
         var buf: [4096]u8 = undefined;
         var fr = file.reader(io, &buf);
@@ -66,8 +68,10 @@ pub const Notebook = struct {
 
     /// Serializes this notebook and writes it to disk, creating or overwriting `path`.
     pub fn save(self: Notebook, io: std.Io, path: []const u8) !void {
-        const cwd = std.Io.Dir.cwd();
-        const file = try cwd.createFile(io, path, .{});
+        const file = if (path.len > 0 and path[0] == '/')
+            try std.Io.Dir.createFileAbsolute(io, path, .{})
+        else
+            try std.Io.Dir.cwd().createFile(io, path, .{});
         defer file.close(io);
         var buf: [4096]u8 = undefined;
         var fw = file.writer(io, &buf);

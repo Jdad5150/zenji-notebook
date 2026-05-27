@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fetchDirectory } from '$lib/mock-data';
 	import type { DirectoryEntry } from '$lib/types';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
@@ -9,38 +8,57 @@
 
 	let {
 		onSelect,
+		onOpenDir,
 		onCancel
 	}: {
+		/** Called when the user clicks a .znb file. */
 		onSelect: (path: string) => void;
+		/** Called when the user clicks "Open here" to use the current directory. */
+		onOpenDir: (dirPath: string) => void;
 		onCancel: () => void;
 	} = $props();
 
-	let currentPath = $state('.');
+	let currentPath = $state('');
 	let entries = $state<DirectoryEntry[]>([]);
-	let loading = $state(false);
+	let loading = $state(true);
+	let error = $state('');
 
+	// Breadcrumb segments derived from the current absolute path.
+	// "/home/user/projects" → ["", "home", "user", "projects"]
+	// We show "/" as the root label.
 	const pathSegments = $derived(
-		currentPath === '.' ? ['~'] : ['~', ...currentPath.split('/').filter(Boolean)]
+		currentPath === '' ? [] : currentPath.split('/').filter((s, i) => i === 0 || s !== '')
 	);
 
 	async function navigate(path: string) {
 		loading = true;
+		error = '';
 		currentPath = path;
-		entries = await fetchDirectory(path);
-		loading = false;
+		try {
+			const res = await fetch(`/api/contents?path=${encodeURIComponent(path || '/')}`);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			entries = await res.json();
+		} catch (e: any) {
+			error = e.message ?? 'Failed to load directory';
+			entries = [];
+		} finally {
+			loading = false;
+		}
 	}
 
-	function navigateToBreadcrumb(index: number) {
-		if (index === 0) return navigate('.');
-		const segs = currentPath.split('/').filter(Boolean);
-		navigate(segs.slice(0, index).join('/'));
+	function navigateToBreadcrumb(segmentIndex: number) {
+		// Reconstruct the path up to segmentIndex.
+		// segments: ["", "home", "user", "projects"] — join first N+1 with "/"
+		const segs = currentPath.split('/');
+		// segmentIndex 0 = root "/"
+		if (segmentIndex === 0) return navigate('/');
+		navigate(segs.slice(0, segmentIndex + 1).join('/'));
 	}
 
 	function goUp() {
-		if (currentPath === '.') return;
-		const parts = currentPath.split('/');
-		parts.pop();
-		navigate(parts.length === 0 ? '.' : parts.join('/'));
+		const idx = currentPath.lastIndexOf('/');
+		if (idx <= 0) return navigate('/');
+		navigate(currentPath.slice(0, idx));
 	}
 
 	function formatSize(bytes?: number): string {
@@ -50,8 +68,19 @@
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
-	onMount(() => {
-		navigate('.');
+	onMount(async () => {
+		// Start at the user's home directory.
+		try {
+			const res = await fetch('/api/home');
+			if (res.ok) {
+				const data = await res.json();
+				navigate(data.path);
+			} else {
+				navigate('/');
+			}
+		} catch {
+			navigate('/');
+		}
 	});
 </script>
 
@@ -60,17 +89,29 @@
 	<div class="px-4 py-2.5">
 		<Breadcrumb.Root>
 			<Breadcrumb.List>
-				{#each pathSegments as segment, i (i)}
-					{#if i > 0}
-						<Breadcrumb.Separator />
+				<!-- Root "/" -->
+				<Breadcrumb.Item>
+					{#if pathSegments.length === 0}
+						<Breadcrumb.Page>/</Breadcrumb.Page>
+					{:else}
+						<Breadcrumb.Link onclick={() => navigate('/')} class="cursor-pointer">/</Breadcrumb.Link>
 					{/if}
+				</Breadcrumb.Item>
+
+				{#each pathSegments.filter(Boolean) as segment, i (i)}
+					<Breadcrumb.Separator />
 					<Breadcrumb.Item>
-						{#if i === pathSegments.length - 1}
+						{#if i === pathSegments.filter(Boolean).length - 1}
 							<Breadcrumb.Page>{segment}</Breadcrumb.Page>
 						{:else}
-							<Breadcrumb.Link onclick={() => navigateToBreadcrumb(i)} class="cursor-pointer">
-								{segment}
-							</Breadcrumb.Link>
+							<Breadcrumb.Link
+								onclick={() => {
+									// Reconstruct path up to this segment
+									const parts = currentPath.split('/').filter(Boolean);
+									navigate('/' + parts.slice(0, i + 1).join('/'));
+								}}
+								class="cursor-pointer">{segment}</Breadcrumb.Link
+							>
 						{/if}
 					</Breadcrumb.Item>
 				{/each}
@@ -86,12 +127,14 @@
 			<div class="flex h-full items-center justify-center">
 				<LoaderCircle class="size-5 animate-spin text-muted-foreground" />
 			</div>
+		{:else if error}
+			<div class="flex h-full items-center justify-center text-sm text-red-400">{error}</div>
 		{:else if entries.length === 0}
 			<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
 				Empty directory
 			</div>
 		{:else}
-			{#if currentPath !== '.'}
+			{#if currentPath !== '/'}
 				<Button
 					variant="ghost"
 					class="flex w-full justify-start gap-3 rounded-none px-4 py-2 text-sm text-muted-foreground"
@@ -128,7 +171,7 @@
 						/>
 					{/if}
 					<span class="flex-1 text-left">{entry.name}</span>
-					{#if !entry.isDirectory && entry.size}
+					{#if !entry.isDirectory && entry.size != null}
 						<span class="text-xs text-muted-foreground">{formatSize(entry.size)}</span>
 					{/if}
 				</Button>
@@ -140,7 +183,10 @@
 
 	<!-- Actions -->
 	<div class="flex items-center justify-between px-4 py-3">
-		<span class="truncate text-xs text-muted-foreground">{currentPath}</span>
-		<Button variant="ghost" size="sm" onclick={onCancel}>Cancel</Button>
+		<span class="max-w-xs truncate text-xs text-muted-foreground">{currentPath || '/'}</span>
+		<div class="flex gap-2">
+			<Button variant="ghost" size="sm" onclick={onCancel}>Cancel</Button>
+			<Button size="sm" onclick={() => onOpenDir(currentPath || '/')}>Open here</Button>
+		</div>
 	</div>
 </div>
