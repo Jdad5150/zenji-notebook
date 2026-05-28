@@ -30,8 +30,8 @@
 			const res = await fetch(`/api/contents?path=${encodeURIComponent(path)}`);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			entries = await res.json();
-		} catch (e: any) {
-			error = e.message ?? 'Failed to load directory';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to load directory';
 			entries = [];
 		} finally {
 			loading = false;

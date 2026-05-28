@@ -57,7 +57,7 @@
 	}
 </script>
 
-<div class={mode === 'edit' ? 'group relative' : 'relative'}>
+<div class={mode === 'edit' ? 'group relative' : 'relative'} data-cell-id={cell.id}>
 	<div class={mode === 'edit' ? 'py-1.5' : 'py-3'}>
 		{#if cell.type === 'markdown' && (mode === 'view' || (cell.rendered && !isActive))}
 			<!-- Rendered markdown -->
@@ -188,7 +188,8 @@
 								<img
 									{src}
 									alt="Plot output {i + 1}"
-									class="block max-h-96 rounded-lg object-contain"
+									class="block max-h-96 cursor-pointer rounded-lg object-contain"
+									onclick={() => onopenplot?.(cell.id)}
 								/>
 							</div>
 						{/each}

@@ -41,7 +41,7 @@
 			} else if (envData.detected.length > 0) {
 				selected = envData.detected[0];
 			}
-		} catch (e) {
+		} catch {
 			error = 'Failed to load environments. Is the server running?';
 		} finally {
 			loading = false;
@@ -63,8 +63,8 @@
 				throw new Error(body.error ?? `HTTP ${res.status}`);
 			}
 			onReady(selected);
-		} catch (e: any) {
-			error = e.message ?? 'Failed to start kernel.';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to start kernel.';
 		} finally {
 			saving = false;
 		}

@@ -38,21 +38,12 @@
 			const res = await fetch(`/api/contents?path=${encodeURIComponent(path || '/')}`);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			entries = await res.json();
-		} catch (e: any) {
-			error = e.message ?? 'Failed to load directory';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to load directory';
 			entries = [];
 		} finally {
 			loading = false;
 		}
-	}
-
-	function navigateToBreadcrumb(segmentIndex: number) {
-		// Reconstruct the path up to segmentIndex.
-		// segments: ["", "home", "user", "projects"] — join first N+1 with "/"
-		const segs = currentPath.split('/');
-		// segmentIndex 0 = root "/"
-		if (segmentIndex === 0) return navigate('/');
-		navigate(segs.slice(0, segmentIndex + 1).join('/'));
 	}
 
 	function goUp() {
