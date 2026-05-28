@@ -7,6 +7,8 @@
 	import NotebookCell from '$lib/components/NotebookCell.svelte';
 	import NotebookMenuBar from '$lib/components/NotebookMenuBar.svelte';
 	import DataExplorer from '$lib/components/DataExplorer.svelte';
+	import EnvironmentPicker from '$lib/components/EnvironmentPicker.svelte';
+	import PlotLightbox from '$lib/components/PlotLightbox.svelte';
 
 	interface OutputData {
 		output_type: string;
@@ -20,19 +22,34 @@
 		output: string;
 		rendered: boolean;
 		outputs: OutputData[];
+		plots: string[]; // /outputs URLs for image_ref outputs
 	}
 
 	let sidebarOpen = $state(true);
 	let dataExplorerOpen = $state(true);
 	let mode = $state<'edit' | 'view'>('edit');
 	let notebookPath = $state('');
+	let notebookDir = $state('.'); // directory containing the notebook — used for env scanning
 	let notebookTitle = $state('');
-	let kernel = $state('Python');
+	let kernel = $state('python');
 	let runtimeStatus = $state<'idle' | 'running' | 'error'>('idle');
 	let activeCellId = $state<number | null>(null);
 	let varsRefreshKey = $state(0);
 	let loadError = $state('');
+	let kernelReady = $state(false);
 	let loading = $state(true);
+	let lightboxOpen = $state(false);
+	let lightboxIndex = $state(0);
+
+	function openLightbox(index: number) {
+		lightboxIndex = index;
+		lightboxOpen = true;
+	}
+
+	function openLightboxForCell(cellId: number) {
+		const index = allPlots.findIndex((p) => p.cellId === cellId);
+		if (index !== -1) openLightbox(index);
+	}
 
 	let cells = $state<CellData[]>([]);
 	let nextId = $state(0);
@@ -54,8 +71,29 @@
 
 	let activeCellType = $derived(cells.find((c) => c.id === activeCellId)?.type ?? 'code');
 
+	const allPlots = $derived(
+		cells.flatMap((c, i) =>
+			c.plots.map((src, j) => ({
+				cellId: c.id,
+				src,
+				title: `Cell ${i + 1}, Plot ${j + 1}`
+			}))
+		)
+	);
+
 	function outputsToString(outputs: OutputData[]): string {
-		return outputs.map((o) => o.data).join('');
+		return outputs
+			.filter((o) => o.output_type !== 'image_png' && o.output_type !== 'image_ref')
+			.map((o) => o.data)
+			.join('');
+	}
+
+	function outputsToPlots(outputs: OutputData[]): string[] {
+		return outputs
+			.filter((o) => o.output_type === 'image_ref')
+			.map(
+				(o) => `/outputs?path=${encodeURIComponent(notebookPath)}&ref=${encodeURIComponent(o.data)}`
+			);
 	}
 
 	onMount(async () => {
@@ -68,6 +106,35 @@
 		notebookPath = path;
 		notebookTitle = path.split('/').pop() ?? path;
 
+		// Derive the directory this notebook lives in so we scan for venvs there.
+		notebookDir = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.';
+
+		// Check whether a kernel is already configured and running.
+		let savedEnvKind: string | null = null;
+		try {
+			const envRes = await fetch(`/api/environment?dir=${encodeURIComponent(notebookDir)}`);
+			if (envRes.ok) {
+				const envData = await envRes.json();
+				savedEnvKind = envData.saved?.kind ?? null;
+
+				if (envData.running) {
+					kernelReady = true;
+				} else if (envData.saved) {
+					// Server restarted — saved config exists but kernel isn't running. Restart it.
+					const restartRes = await fetch('/api/environment', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ ...envData.saved, dir: notebookDir })
+					});
+					kernelReady = restartRes.ok;
+				}
+				// else: no saved config → kernelReady stays false → picker shows
+			}
+		} catch {
+			// If we can't reach the env API, let the user proceed and fail later.
+			kernelReady = true;
+		}
+
 		const res = await fetch(`/api/notebook?path=${encodeURIComponent(path)}`);
 		if (!res.ok) {
 			loadError = `Failed to load notebook: ${res.status}`;
@@ -76,7 +143,8 @@
 		}
 
 		const nb = await res.json();
-		kernel = nb.kernel_type ?? 'python';
+		// Saved environment is the source of truth; notebook file is the fallback.
+		kernel = savedEnvKind ?? nb.kernel_type ?? 'python';
 		nextId = nb.next_cell_id ?? 0;
 
 		cells = (nb.cells ?? []).map(
@@ -92,7 +160,8 @@
 				content: c.source,
 				output: outputsToString(c.outputs ?? []),
 				rendered: c.cell_type === 'markdown',
-				outputs: c.outputs ?? []
+				outputs: c.outputs ?? [],
+				plots: outputsToPlots(c.outputs ?? [])
 			})
 		);
 
@@ -105,6 +174,8 @@
 
 		if (cell.type === 'markdown') {
 			cell.rendered = true;
+			activeCellId = null;
+			saveNotebook();
 			return;
 		}
 
@@ -130,7 +201,8 @@
 						content: c.source,
 						output: outputsToString(c.outputs ?? []),
 						rendered: c.cell_type === 'markdown',
-						outputs: c.outputs ?? []
+						outputs: c.outputs ?? [],
+						plots: outputsToPlots(c.outputs ?? [])
 					})
 				);
 				runtimeStatus = 'idle';
@@ -146,7 +218,15 @@
 
 	function addCell(type: 'code' | 'markdown' = 'code', atIndex?: number) {
 		const id = nextId++;
-		const newCell: CellData = { id, type, content: '', output: '', rendered: false, outputs: [] };
+		const newCell: CellData = {
+			id,
+			type,
+			content: '',
+			output: '',
+			rendered: false,
+			outputs: [],
+			plots: []
+		};
 		if (atIndex !== undefined) {
 			cells = [...cells.slice(0, atIndex), newCell, ...cells.slice(atIndex)];
 		} else {
@@ -183,7 +263,6 @@
 
 	async function saveNotebook() {
 		const body = {
-			// Remove this line: path: notebookPath,
 			kernel_type: kernel.toLowerCase(),
 			next_cell_id: nextId,
 			cells: cells.map((c) => ({
@@ -206,9 +285,37 @@
 	}
 </script>
 
+{#if !kernelReady}
+	<!-- Environment picker overlay — shown when no kernel has been configured yet -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+	>
+		<div class="w-full max-w-md space-y-6 rounded-2xl border border-white/8 bg-card p-8 shadow-2xl">
+			<div class="text-center">
+				<h2 class="text-xl font-semibold text-foreground">Choose an Environment</h2>
+				<p class="mt-1 text-sm text-muted-foreground">
+					Zenji needs a Python environment to run your code.
+				</p>
+			</div>
+			<EnvironmentPicker
+				dir={notebookDir}
+				onReady={(env) => {
+					kernel = env.kind;
+					kernelReady = true;
+					saveNotebook();
+				}}
+			/>
+		</div>
+	</div>
+{/if}
+
 <div class="flex h-screen overflow-hidden bg-background">
 	{#if mode === 'edit'}
-		<NotebookSidebar open={sidebarOpen} ontoggle={() => (sidebarOpen = !sidebarOpen)} />
+		<NotebookSidebar
+			open={sidebarOpen}
+			rootPath={notebookDir}
+			ontoggle={() => (sidebarOpen = !sidebarOpen)}
+		/>
 	{/if}
 
 	<div class="flex flex-1 flex-col overflow-hidden">
@@ -246,6 +353,7 @@
 					onsetcelltype={setActiveCellType}
 					onsetmode={setMode}
 					ontoggleexplorer={() => (dataExplorerOpen = !dataExplorerOpen)}
+					onkernelclick={() => (kernelReady = false)}
 				/>
 
 				<!-- Cell area -->
@@ -267,6 +375,7 @@
 									isActive={activeCellId === cell.id}
 									isLast={index === cells.length - 1}
 									{mode}
+									lang={kernel}
 									onrun={() => runCell(cell.id)}
 									onactivate={() => (activeCellId = cell.id)}
 									onchange={(val) => (cell.content = val)}
@@ -274,7 +383,7 @@
 									onmove={(dir) => moveCell(index, dir)}
 									onaddcell={(type, at) => addCell(type, at)}
 									onunrender={() => (cell.rendered = false)}
-									onopenplot={() => {}}
+									onopenplot={(cellId) => openLightboxForCell(cellId)}
 								/>
 							{/each}
 
@@ -310,8 +419,8 @@
 					{#if dataExplorerOpen}
 						<DataExplorer
 							{tocEntries}
-							plots={[]}
-							onopenplot={() => {}}
+							plots={allPlots}
+							onopenplot={(i) => openLightbox(i)}
 							refreshKey={varsRefreshKey}
 						/>
 					{/if}
@@ -320,3 +429,12 @@
 		</div>
 	</div>
 </div>
+
+{#if lightboxOpen && allPlots.length > 0}
+	<PlotLightbox
+		plots={allPlots}
+		currentIndex={lightboxIndex}
+		onclose={() => (lightboxOpen = false)}
+		onnavigate={(i) => (lightboxIndex = i)}
+	/>
+{/if}

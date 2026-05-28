@@ -16,6 +16,8 @@ pub const OutputType = enum(u8) {
     /// Path fragment into the sidecar directory, e.g. "42/0".
     image_ref = 2,
     err = 3,
+    /// Base64-encoded PNG data, rendered inline as an image.
+    image_png = 4,
 };
 
 /// A single output produced by cell execution.
@@ -61,6 +63,7 @@ pub const Output = struct {
             1 => .stderr,
             2 => .image_ref,
             3 => .err,
+            4 => .image_png,
             else => return error.InvalidOutputType,
         };
 

@@ -16,7 +16,7 @@ pub const MojoKernel = struct {
     }
 
     /// Execute Mojo code. Not yet implemented.
-    pub fn execute(_: *MojoKernel, _: [*:0]const u8) !CellResult {
+    pub fn execute(_: *MojoKernel, _: []const u8) !CellResult {
         std.debug.print("Mojo kernel not implemented\n", .{});
         return .{};
     }

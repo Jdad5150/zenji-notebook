@@ -1,7 +1,10 @@
 //! GET /api/contents — list directory contents for the file browser.
 //!
-//! Query param: ?path=<relative-path>  (use "." for the server root)
+//! Query param: ?path=<path>
+//!   - "." for the server root (cwd)
+//!   - An absolute path like "/home/user/projects" to browse anywhere
 //! Response: JSON array of { name, path, isDirectory, size? }
+//!   Paths in the response are absolute when the request path is absolute.
 
 const std = @import("std");
 const httpz = @import("httpz");
@@ -22,7 +25,7 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
     const q = try req.query();
     const raw_path = q.get("path") orelse ".";
 
-    // "." is the safe root; anything else must pass the traversal check.
+    // Reject ".." components but allow absolute paths.
     if (!std.mem.eql(u8, raw_path, ".")) {
         validatePath(raw_path) catch {
             res.status = 400;
@@ -31,7 +34,12 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
         };
     }
 
-    const dir = std.Io.Dir.cwd().openDir(ctx.io, raw_path, .{ .iterate = true }) catch |err| switch (err) {
+    const is_abs = raw_path.len > 0 and raw_path[0] == '/';
+
+    const dir = (if (is_abs)
+        std.Io.Dir.openDirAbsolute(ctx.io, raw_path, .{ .iterate = true })
+    else
+        std.Io.Dir.cwd().openDir(ctx.io, raw_path, .{ .iterate = true })) catch |err| switch (err) {
         error.FileNotFound, error.NotDir => {
             res.status = 404;
             res.body = "{\"error\":\"directory not found\"}";
@@ -45,13 +53,17 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
     };
     defer dir.close(ctx.io);
 
-    var list = std.ArrayList(EntryJson).empty;
+    var list: std.ArrayList(EntryJson) = .empty;
     var iter = dir.iterate();
     while (try iter.next(ctx.io)) |entry| {
         const is_dir = entry.kind == .directory;
-        // Dupe name before the next iteration invalidates entry.name.
         const name = try arena.dupe(u8, entry.name);
-        const entry_path = if (std.mem.eql(u8, raw_path, "."))
+
+        // Build the entry path that the client will use for subsequent requests.
+        // For absolute parent paths, return absolute child paths.
+        const entry_path = if (is_abs)
+            try std.fmt.allocPrint(arena, "{s}/{s}", .{ raw_path, name })
+        else if (std.mem.eql(u8, raw_path, "."))
             name
         else
             try std.fmt.allocPrint(arena, "{s}/{s}", .{ raw_path, name });
@@ -64,12 +76,20 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
         }
 
         try list.append(arena, .{
-            .name = name,
-            .path = entry_path,
+            .name        = name,
+            .path        = entry_path,
             .isDirectory = is_dir,
-            .size = size,
+            .size        = size,
         });
     }
+
+    // Sort: directories first, then alphabetically within each group.
+    std.mem.sort(EntryJson, list.items, {}, struct {
+        fn lessThan(_: void, a: EntryJson, b: EntryJson) bool {
+            if (a.isDirectory != b.isDirectory) return a.isDirectory;
+            return std.mem.lessThan(u8, a.name, b.name);
+        }
+    }.lessThan);
 
     res.status = 200;
     res.content_type = .JSON;

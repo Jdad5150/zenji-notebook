@@ -7,16 +7,20 @@
 //! In dev mode, CORS is enabled for the Vite dev server at localhost:5173.
 //! The --dev flag is ignored in release builds.
 
-const std = @import("std");
-const log = std.log;
+const std   = @import("std");
+const log   = std.log;
 const posix = std.posix;
 const httpz = @import("httpz");
-const routerz = @import("./router.zig");
+
+const routerz   = @import("./router.zig");
 const middleware = @import("middleware.zig");
-const tokenz = @import("../auth/token.zig").Token;
-const Kernel = @import("../kernel/kernel.zig").Kernel;
-const Notebook = @import("../notebook/notebook.zig").Notebook;
-const Cell = @import("../notebook/cell.zig").Cell;
+const tokenz    = @import("../auth/token.zig").Token;
+const Kernel    = @import("../kernel/kernel.zig").Kernel;
+const Language  = @import("../kernel/kernel.zig").Language;
+const Notebook  = @import("../notebook/notebook.zig").Notebook;
+const Cell      = @import("../notebook/cell.zig").Cell;
+const envCfg    = @import("../env/config.zig");
+const scanner   = @import("../env/scanner.zig");
 
 const HttpServer = httpz.Server(*const Config);
 
@@ -31,16 +35,25 @@ fn signalThread(server: *HttpServer) void {
     log.info("shutting down (signal {d})", .{sig});
     server.stop();
 }
+
 /// Server configuration passed in from the CLI and propagated to all handlers.
 pub const Config = struct {
     port: u16 = 8888,
     token: ?[]const u8 = null,
     dev: bool = false,
     no_auth: bool = true,
+    /// Root directory to serve notebooks from. Defaults to cwd if null.
+    /// startServer will chdir here before anything else, so all relative
+    /// paths throughout the app resolve from this location.
+    root_dir: ?[]const u8 = null,
     /// Set by startServer from the runtime Io — handlers use this for file I/O.
     io: std.Io = undefined,
-    /// Active kernel — shared across all requests; acquire kernel_mutex before calling execute.
-    kernel: *Kernel = undefined,
+    /// GPA allocator — available to handlers that need to allocate memory
+    /// outside a request arena (e.g. kernel spawning in the environment API).
+    allocator: std.mem.Allocator = undefined,
+    /// Active kernel — null until the user selects an environment.
+    /// Mutate only while holding kernel_mutex.
+    kernel: *?Kernel = undefined,
     /// Serialises access to the kernel across concurrent requests.
     kernel_mutex: *std.Io.Mutex = undefined,
 };
@@ -68,16 +81,51 @@ fn createExampleNotebook(io: std.Io, allocator: std.mem.Allocator) !void {
 pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !void {
     var cfg = config;
     cfg.io = io;
+    cfg.allocator = allocator;
 
-    var kernel = Kernel.init(.python, allocator);
-    defer kernel.deinit();
-    cfg.kernel = &kernel;
+    // ── Root directory ────────────────────────────────────────────────────────
+    // If the user passed --root, chdir there so every relative path in the app
+    // (file browser, notebook load/save, env scanner) resolves from that dir.
+    if (cfg.root_dir) |root| {
+        var path_buf: [std.fs.max_path_bytes + 1]u8 = undefined;
+        const root_z = std.fmt.bufPrintZ(&path_buf, "{s}", .{root}) catch {
+            log.err("root path too long: '{s}'", .{root});
+            return error.PathTooLong;
+        };
+        if (std.c.chdir(root_z) != 0) {
+            log.err("cannot chdir to '{s}'", .{root});
+            return error.ChdirFailed;
+        }
+        log.info("serving from {s}", .{root});
+    }
+
+    // ── Kernel slot ───────────────────────────────────────────────────────────
+    // Kernel is optional — null until the user selects an environment.
+    // We use a double-pointer so handlers can swap the kernel without the
+    // Config pointer itself being mutable.
+    var kernel_slot: ?Kernel = null;
+    cfg.kernel = &kernel_slot;
+    defer if (kernel_slot) |*k| k.deinit();
+
+    // If a .zenji.json already exists, try to start the saved kernel immediately.
+    if (envCfg.load(io, allocator, ".") catch null) |saved| {
+        defer envCfg.freeSavedEnv(allocator, saved);
+        const lang = std.meta.stringToEnum(Language, saved.kind) orelse .python;
+        kernel_slot = Kernel.init(lang, io, allocator, saved.binary) catch |err| blk: {
+            log.warn("saved kernel '{s}' failed to start: {} — waiting for env selection", .{ saved.binary, err });
+            break :blk null;
+        };
+        if (kernel_slot != null) {
+            log.info("kernel started from saved config: {s}", .{saved.binary});
+        }
+    } else {
+        log.info("no environment configured — open the app and select one", .{});
+    }
 
     var kernel_mutex = std.Io.Mutex.init;
     cfg.kernel_mutex = &kernel_mutex;
 
-    log.info("Python kernel started", .{});
-
+    // ── HTTP server ───────────────────────────────────────────────────────────
     var server = try httpz.Server(*const Config).init(io, allocator, .{ .address = .localhost(cfg.port) }, &cfg);
     defer server.deinit();
     const logger = try server.middleware(middleware.Logger, .{});
@@ -86,7 +134,7 @@ pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !vo
     tok.generate();
 
     const auth = try server.middleware(middleware.Auth, .{
-        .token = &tok,
+        .token   = &tok,
         .no_auth = cfg.no_auth,
     });
 
@@ -108,8 +156,7 @@ pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !vo
         };
     }
 
-    // Block signals on the main thread before spawning the signal thread,
-    // so the OS delivers them to sigwait instead of the default handler.
+    // Block signals on the main thread before spawning the signal thread.
     var mask = posix.sigemptyset();
     posix.sigaddset(&mask, posix.SIG.INT);
     posix.sigaddset(&mask, posix.SIG.TERM);

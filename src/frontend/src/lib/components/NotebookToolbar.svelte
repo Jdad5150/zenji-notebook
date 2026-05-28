@@ -20,7 +20,8 @@
 		onaddcell,
 		onsetcelltype,
 		onsetmode,
-		ontoggleexplorer
+		ontoggleexplorer,
+		onkernelclick
 	}: {
 		mode: 'edit' | 'view';
 		activeCellType: 'code' | 'markdown';
@@ -31,7 +32,10 @@
 		onsetcelltype: () => void;
 		onsetmode: (mode: 'edit' | 'view') => void;
 		ontoggleexplorer: () => void;
+		onkernelclick: () => void;
 	} = $props();
+
+	const kernelLabel = $derived(kernel ? kernel[0].toUpperCase() + kernel.slice(1) : '—');
 
 	const statusColor = $derived(
 		runtimeStatus === 'running'
@@ -127,8 +131,9 @@
 			<Separator orientation="vertical" class="h-4" />
 			<button
 				class="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground"
+				onclick={onkernelclick}
 			>
-				{kernel}
+				{kernelLabel}
 				<ChevronDown class="size-3 opacity-50" />
 			</button>
 			<Separator orientation="vertical" class="h-4" />

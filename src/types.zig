@@ -1,26 +1,45 @@
 //! Shared result and introspection types returned by all kernel backends.
 
 /// The result of executing a single notebook cell.
-/// Caller is responsible for freeing `figures` slice if non-null.
+/// stdout, stderr, and each figure string are allocator-owned — caller must free.
 pub const CellResult = struct {
-    stdout: ?[*:0]const u8 = null,
-    stderr: ?[*:0]const u8 = null,
+    stdout: ?[]const u8 = null,
+    stderr: ?[]const u8 = null,
     /// Base64-encoded PNG images captured from matplotlib figures.
-    figures: ?[]const [*:0]const u8 = null,
+    /// Each string and the slice itself are allocator-owned.
+    figures: ?[][]const u8 = null,
     success: bool = true,
 };
 
-/// A user-defined variable in the kernel's namespace.
-/// All string fields are allocator-owned copies — safe to use after Python objects are freed.
-pub const Variable = struct {
-    name: [*:0]const u8,
-    value: [*:0]const u8,
-    type_name: [*:0]const u8,
+/// Language-agnostic category for a variable — used by the frontend for
+/// colour-coding without needing to know Python/R/Julia-specific type names.
+pub const VarKind = enum {
+    scalar,    // single numeric/boolean value
+    string,    // single text value
+    sequence,  // ordered collection (list, vector, 1-D array)
+    mapping,   // key-value store (dict, named list)
+    dataframe, // tabular data (DataFrame, data.frame, tibble)
+    matrix,    // 2-D numerical array
+    tensor,    // N-D array (ndim > 2)
+    function,  // callable / closure
+    other,     // anything else
 };
 
-/// An imported module visible in the kernel's namespace.
+/// A user-defined variable in the kernel namespace.
+/// All fields are allocator-owned copies except `kind`.
+pub const Variable = struct {
+    name:      []const u8,
+    value:     []const u8,
+    type_name: []const u8,
+    kind:      VarKind = .other,
+    /// Dimension string, e.g. "100 × 5" or "200". Null for scalars/strings/functions.
+    shape:     ?[]const u8 = null,
+};
+
+/// An imported module visible in the kernel namespace.
+/// All fields are allocator-owned copies.
 pub const Module = struct {
-    name: [*:0]const u8,
-    /// File path of the module, or "built-in" for modules without a file.
-    path: [*:0]const u8,
+    name: []const u8,
+    /// File path of the module, or "built-in" for modules without __file__.
+    path: []const u8,
 };

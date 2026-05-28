@@ -16,7 +16,7 @@ pub const JuliaKernel = struct {
     }
 
     /// Execute Julia code. Not yet implemented.
-    pub fn execute(_: *JuliaKernel, _: [*:0]const u8) !CellResult {
+    pub fn execute(_: *JuliaKernel, _: []const u8) !CellResult {
         std.debug.print("Julia kernel not implemented\n", .{});
         return .{};
     }

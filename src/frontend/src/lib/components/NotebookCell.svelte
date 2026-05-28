@@ -10,8 +10,7 @@
 		ChevronUp,
 		ChevronDownIcon,
 		GripVertical,
-		Ellipsis,
-		Maximize2
+		Ellipsis
 	} from '@lucide/svelte';
 
 	let {
@@ -20,6 +19,7 @@
 		isActive,
 		isLast,
 		mode,
+		lang = 'python',
 		onrun,
 		onactivate,
 		onchange,
@@ -35,12 +35,13 @@
 			content: string;
 			output: string;
 			rendered: boolean;
-			plotSrc?: string;
+			plots?: string[];
 		};
 		index: number;
 		isActive: boolean;
 		isLast: boolean;
 		mode: 'edit' | 'view';
+		lang?: string;
 		onrun: () => void;
 		onactivate: () => void;
 		onchange: (val: string) => void;
@@ -56,7 +57,7 @@
 	}
 </script>
 
-<div class={mode === 'edit' ? 'group relative' : 'relative'}>
+<div class={mode === 'edit' ? 'group relative' : 'relative'} data-cell-id={cell.id}>
 	<div class={mode === 'edit' ? 'py-1.5' : 'py-3'}>
 		{#if cell.type === 'markdown' && (mode === 'view' || (cell.rendered && !isActive))}
 			<!-- Rendered markdown -->
@@ -149,6 +150,7 @@
 						{#if mode === 'edit' && isActive}
 							<CodeCell
 								content={cell.content}
+								{lang}
 								onchange={(val) => onchange(val)}
 								onrun={() => onrun()}
 							/>
@@ -157,7 +159,7 @@
 								{#if cell.content}
 									<RenderedCode
 										content={cell.content}
-										lang={cell.type === 'code' ? 'python' : 'markdown'}
+										lang={cell.type === 'code' ? lang : 'markdown'}
 									/>
 								{:else}
 									<p class="py-1 text-sm text-muted-foreground/50 italic">Click to edit</p>
@@ -166,7 +168,7 @@
 						{:else if cell.content}
 							<RenderedCode
 								content={cell.content}
-								lang={cell.type === 'code' ? 'python' : 'markdown'}
+								lang={cell.type === 'code' ? lang : 'markdown'}
 							/>
 						{/if}
 					</div>
@@ -179,29 +181,18 @@
 						</div>
 					{/if}
 
-					<!-- Plot thumbnail -->
-					{#if cell.plotSrc}
-						<div class="mt-2 px-1">
-							<button
-								class="group/plot relative overflow-hidden rounded-lg border border-white/6 transition-all hover:border-white/12 hover:shadow-lg hover:shadow-black/20"
-								onclick={() => onopenplot?.(cell.id)}
-							>
+					<!-- Plot outputs -->
+					{#if cell.plots && cell.plots.length > 0}
+						{#each cell.plots as src, i (i)}
+							<div class="mt-2 px-1">
 								<img
-									src={cell.plotSrc}
-									alt="Plot output"
-									class="block max-h-50 w-full bg-[#1a1b1e] object-contain"
+									{src}
+									alt="Plot output {i + 1}"
+									class="block max-h-96 cursor-pointer rounded-lg object-contain"
+									onclick={() => onopenplot?.(cell.id)}
 								/>
-								<div
-									class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/plot:bg-black/30"
-								>
-									<div
-										class="rounded-lg bg-black/60 p-2 opacity-0 transition-opacity group-hover/plot:opacity-100"
-									>
-										<Maximize2 class="size-5 text-white" />
-									</div>
-								</div>
-							</button>
-						</div>
+							</div>
+						{/each}
 					{/if}
 				</div>
 

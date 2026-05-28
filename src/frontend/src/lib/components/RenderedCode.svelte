@@ -55,17 +55,20 @@
 	}
 
 	async function highlight(code: string, language: string) {
-		const highlighter = await getHighlighter();
-
-		const loaded = highlighter.getLoadedLanguages();
-		if (!loaded.includes(language)) {
-			await highlighter.loadLanguage(language as BundledLanguage);
+		try {
+			const highlighter = await getHighlighter();
+			const loaded = highlighter.getLoadedLanguages();
+			if (!loaded.includes(language)) {
+				await highlighter.loadLanguage(language as BundledLanguage);
+			}
+			html = highlighter.codeToHtml(code, {
+				lang: language,
+				theme: 'catppuccin-mocha'
+			});
+		} catch {
+			// Unknown language — fall back to the plain <pre> via empty html
+			html = '';
 		}
-
-		html = highlighter.codeToHtml(code, {
-			lang: language,
-			theme: 'catppuccin-mocha'
-		});
 	}
 
 	onMount(() => {

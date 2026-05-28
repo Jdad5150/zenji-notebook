@@ -1,234 +1,242 @@
-//! CPython kernel backend — executes code via the embedded interpreter.
+//! Python kernel backend — executes code via a persistent subprocess worker.
+//!
+//! On init, the worker script is written to /tmp and the venv Python binary is
+//! spawned. Each execute/variables/modules call sends a single JSON command line
+//! to the worker's stdin and reads a single JSON response line back from stdout.
+//! The worker stays alive between calls so variables persist across cells.
+//!
+//! The worker script is embedded at compile time so nothing extra needs to be
+//! distributed alongside the server binary.
 
 const std = @import("std");
-const python = @import("c");
 const CellResult = @import("../types.zig").CellResult;
-const Variable = @import("../types.zig").Variable;
-const Module = @import("../types.zig").Module;
+const Variable   = @import("../types.zig").Variable;
+const VarKind    = @import("../types.zig").VarKind;
+const Module     = @import("../types.zig").Module;
 
-/// Injected before user code to redirect stdout/stderr to StringIO buffers.
-const capture_setup =
-    \\import io as _io, sys as _sys
-    \\_old_stdout = _sys.stdout
-    \\_old_stderr = _sys.stderr
-    \\_sys.stdout = _io.StringIO()
-    \\_sys.stderr = _io.StringIO()
-;
+/// Embedded worker script — written to disk on first kernel init.
+const worker_script: []const u8 = @embedFile("worker.py");
 
-/// Injected after user code to read captured output and collect matplotlib figures.
-/// Uses bare except to handle cases where matplotlib isn't installed or sys.__file__ is missing.
-const capture_teardown =
-    \\_captured_stdout = _sys.stdout.getvalue()
-    \\_captured_stderr = _sys.stderr.getvalue()
-    \\_sys.stdout = _old_stdout
-    \\_sys.stderr = _old_stderr
-    \\_captured_figures = []
-    \\try:
-    \\    import matplotlib.pyplot as _plt
-    \\    import base64 as _b64
-    \\    for _fig_num in _plt.get_fignums():
-    \\        _buf = _io.BytesIO()
-    \\        _plt.figure(_fig_num).savefig(_buf, format='png')
-    \\        _buf.seek(0)
-    \\        _captured_figures.append(_b64.b64encode(_buf.read()).decode('utf-8'))
-    \\        _plt.close(_fig_num)
-    \\except:
-    \\    pass
-;
+/// Fixed temp path for the worker. One server instance per user so no collision.
+const WORKER_PATH: [:0]const u8 = "/tmp/.zenji_worker.py";
 
 pub const PythonKernel = struct {
-    globals: *python.PyObject,
-    /// Points to the same dict as globals — top-level execution uses a single namespace.
-    locals: *python.PyObject,
-    allocator: std.mem.Allocator,
+    child:      std.process.Child,
+    /// Stored so deinit() and the helpers can call wait() and writeStreamingAll().
+    io:         std.Io,
+    allocator:  std.mem.Allocator,
+    /// Internal read buffer for stdout — allows efficient line-by-line reads.
+    read_buf:   [65536]u8,
+    read_start: usize,
+    read_end:   usize,
 
-    /// Initialize the CPython interpreter and set up the execution namespace.
-    /// Must be called before any other PythonKernel methods.
-    pub fn init(allocator: std.mem.Allocator) PythonKernel {
-        python.Py_Initialize();
-        const globals = python.PyDict_New();
-        _ = python.PyDict_SetItemString(globals, "__builtins__", python.PyEval_GetBuiltins());
+    /// Spawn the Python worker using the given venv binary path.
+    /// The binary should be something like ".venv/bin/python".
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, binary: []const u8) !PythonKernel {
+        try writeWorkerScript();
 
-        // Set matplotlib to non-interactive backend before anyone imports pyplot
-        _ = python.PyRun_String("try:\n    import matplotlib\n    matplotlib.use('Agg')\nexcept:\n    pass", python.Py_file_input, globals, globals);
-        python.PyErr_Clear(); // matplotlib init can leave stale errors on built-in modules
+        // -u = unbuffered so responses arrive immediately
+        const child = try std.process.spawn(io, .{
+            .argv   = &.{ binary, "-u", WORKER_PATH },
+            .stdin  = .pipe,
+            .stdout = .pipe,
+            .stderr = .ignore,
+        });
 
-        // Release the GIL so httpz worker threads can acquire it via PyGILState_Ensure.
-        _ = python.PyEval_SaveThread();
-
-        return .{ .globals = globals, .locals = globals, .allocator = allocator };
+        return .{
+            .child      = child,
+            .io         = io,
+            .allocator  = allocator,
+            .read_buf   = undefined,
+            .read_start = 0,
+            .read_end   = 0,
+        };
     }
 
-    /// Execute a cell of Python code. Captures stdout, stderr, and matplotlib figures.
-    /// The code is sandwiched between capture_setup and capture_teardown before execution.
-    pub fn execute(self: *PythonKernel, code: [*:0]const u8) !CellResult {
-        // Acquire the GIL for the current thread. After PyEval_SaveThread() in init(),
-        // the GIL is released — worker threads must re-acquire it before any Python C API call.
-        const gil = python.PyGILState_Ensure();
-        defer python.PyGILState_Release(gil);
+    /// Execute a cell of Python code.
+    /// Returns captured stdout, stderr, and any matplotlib figures.
+    /// All non-null strings in the result are allocator-owned — caller must free.
+    pub fn execute(self: *PythonKernel, code: []const u8) !CellResult {
+        try self.sendJson(.{ .cmd = "execute", .code = code });
 
-        const full_code = try std.mem.concatWithSentinel(self.allocator, u8, &.{ capture_setup, "\n", std.mem.span(code), "\n", capture_teardown }, 0);
-        defer self.allocator.free(full_code);
+        const line = try self.readLine();
+        defer self.allocator.free(line);
 
-        const result = python.PyRun_String(full_code, python.Py_file_input, self.globals, self.locals);
+        const ExecuteResponse = struct {
+            stdout:  []const u8         = "",
+            stderr:  []const u8         = "",
+            figures: []const []const u8 = &.{},
+        };
 
-        // All captured data lives in globals as Python objects — pull them out
-        const stdout_obj = python.PyDict_GetItemString(self.globals, "_captured_stdout");
-        const stderr_obj = python.PyDict_GetItemString(self.globals, "_captured_stderr");
-        const captured_fig_obj = python.PyDict_GetItemString(self.globals, "_captured_figures");
+        const parsed = try std.json.parseFromSlice(
+            ExecuteResponse,
+            self.allocator,
+            line,
+            .{ .ignore_unknown_fields = true },
+        );
+        defer parsed.deinit();
 
-        // Extract figure base64 strings — dupeZ so they're safe after further Python calls
-        const figures: ?[]const [*:0]const u8 = if (captured_fig_obj != null and python.PyList_Size(captured_fig_obj) > 0) blk: {
-            const count: usize = @intCast(python.PyList_Size(captured_fig_obj));
-            const figs = try self.allocator.alloc([*:0]const u8, count);
-            for (0..count) |i| {
-                const item = python.PyList_GetItem(captured_fig_obj, @intCast(i));
-                figs[i] = try self.allocator.dupeZ(u8, std.mem.span(python.PyUnicode_AsUTF8(item)));
+        const stdout = if (parsed.value.stdout.len > 0)
+            try self.allocator.dupe(u8, parsed.value.stdout)
+        else
+            null;
+        errdefer if (stdout) |s| self.allocator.free(s);
+
+        const stderr = if (parsed.value.stderr.len > 0)
+            try self.allocator.dupe(u8, parsed.value.stderr)
+        else
+            null;
+        errdefer if (stderr) |s| self.allocator.free(s);
+
+        var figs: ?[][]const u8 = null;
+        if (parsed.value.figures.len > 0) {
+            const arr = try self.allocator.alloc([]const u8, parsed.value.figures.len);
+            errdefer self.allocator.free(arr);
+            for (parsed.value.figures, 0..) |fig, i| {
+                arr[i] = try self.allocator.dupe(u8, fig);
             }
-            break :blk figs;
-        } else null;
-
-        const stdout_str = if (stdout_obj != null) python.PyUnicode_AsUTF8(stdout_obj) else null;
-        const stderr_str = if (stderr_obj != null) python.PyUnicode_AsUTF8(stderr_obj) else null;
-
-        if (result == null) {
-            python.PyErr_Print();
-            if (figures) |figs| self.allocator.free(figs);
-            return error.ExecutionFailed;
+            figs = arr;
         }
 
-        python.Py_DecRef(result); // new reference from PyRun_String — must decref
-        return .{ .stdout = stdout_str, .stderr = stderr_str, .figures = figures };
+        return .{
+            .stdout  = stdout,
+            .stderr  = stderr,
+            .figures = figs,
+            .success = parsed.value.stderr.len == 0,
+        };
     }
 
     /// Returns user-defined variables from the kernel namespace.
-    /// Filters out underscore-prefixed names and module objects.
-    /// Returned strings are allocator-owned copies (safe after Python GC).
-    /// Caller must free the returned slice.
+    /// The returned slice and all strings inside are allocator-owned — caller must free.
     pub fn getVariables(self: *PythonKernel) ![]const Variable {
-        const gil = python.PyGILState_Ensure();
-        defer python.PyGILState_Release(gil);
+        try self.sendJson(.{ .cmd = "variables" });
 
-        var pos: python.Py_ssize_t = 0;
-        var key: ?*python.PyObject = null;
-        var value: ?*python.PyObject = null;
+        const line = try self.readLine();
+        defer self.allocator.free(line);
 
-        // First pass: count qualifying entries
-        var count: usize = 0;
-        while (python.PyDict_Next(self.globals, &pos, &key, &value) != 0) {
-            const name = python.PyUnicode_AsUTF8(key);
-            const name_slice = std.mem.span(name);
-            if (std.mem.startsWith(u8, name_slice, "_")) continue;
+        const Entry = struct {
+            name:  []const u8,
+            value: []const u8,
+            type:  []const u8,
+            kind:  []const u8 = "other",
+            shape: ?[]const u8 = null,
+        };
+        const VarsResponse = struct {
+            variables: []const Entry = &.{},
+        };
 
-            const type_obj = python.PyObject_Type(value);
-            const type_name_obj = python.PyObject_GetAttrString(type_obj, "__name__");
-            defer python.Py_DecRef(type_obj);
-            defer if (type_name_obj != null) python.Py_DecRef(type_name_obj);
-            if (type_name_obj != null and std.mem.eql(u8, std.mem.span(python.PyUnicode_AsUTF8(type_name_obj)), "module")) continue;
+        const parsed = try std.json.parseFromSlice(
+            VarsResponse,
+            self.allocator,
+            line,
+            .{ .ignore_unknown_fields = true },
+        );
+        defer parsed.deinit();
 
-            count += 1;
-        }
-
-        const vars = try self.allocator.alloc(Variable, count);
-
-        // Second pass: copy data into allocator-owned strings
-        pos = 0;
-        var i: usize = 0;
-        while (python.PyDict_Next(self.globals, &pos, &key, &value) != 0) {
-            const name = python.PyUnicode_AsUTF8(key);
-            const name_slice = std.mem.span(name);
-            if (std.mem.startsWith(u8, name_slice, "_")) continue;
-
-            const type_obj = python.PyObject_Type(value);
-            const type_name_obj = python.PyObject_GetAttrString(type_obj, "__name__");
-            defer python.Py_DecRef(type_obj);
-            defer if (type_name_obj != null) python.Py_DecRef(type_name_obj);
-
-            const type_name_str: [*:0]const u8 = if (type_name_obj != null) python.PyUnicode_AsUTF8(type_name_obj) else "unknown";
-            if (std.mem.eql(u8, std.mem.span(type_name_str), "module")) continue;
-
-            const repr = python.PyObject_Repr(value);
-            defer python.Py_DecRef(repr);
-
-            // dupeZ copies the string — necessary because PyObject_Repr's buffer is reused
+        const vars = try self.allocator.alloc(Variable, parsed.value.variables.len);
+        for (parsed.value.variables, 0..) |v, i| {
             vars[i] = .{
-                .name = try self.allocator.dupeZ(u8, std.mem.span(name)),
-                .value = try self.allocator.dupeZ(u8, std.mem.span(python.PyUnicode_AsUTF8(repr))),
-                .type_name = try self.allocator.dupeZ(u8, std.mem.span(type_name_str)),
+                .name      = try self.allocator.dupe(u8, v.name),
+                .value     = try self.allocator.dupe(u8, v.value),
+                .type_name = try self.allocator.dupe(u8, v.type),
+                .kind      = std.meta.stringToEnum(VarKind, v.kind) orelse .other,
+                .shape     = if (v.shape) |s| try self.allocator.dupe(u8, s) else null,
             };
-
-            i += 1;
         }
-
         return vars;
     }
 
-    /// Returns imported modules from the kernel namespace.
-    /// Filters out underscore-prefixed internal imports.
-    /// Caller must free the returned slice.
+    /// Returns imported modules visible in the kernel namespace.
+    /// The returned slice and all strings inside are allocator-owned — caller must free.
     pub fn getModules(self: *PythonKernel) ![]const Module {
-        const gil = python.PyGILState_Ensure();
-        defer python.PyGILState_Release(gil);
+        try self.sendJson(.{ .cmd = "modules" });
 
-        var pos: python.Py_ssize_t = 0;
-        var key: ?*python.PyObject = null;
-        var value: ?*python.PyObject = null;
+        const line = try self.readLine();
+        defer self.allocator.free(line);
 
-        // First pass: count modules
-        var count: usize = 0;
-        while (python.PyDict_Next(self.globals, &pos, &key, &value) != 0) {
-            const name = python.PyUnicode_AsUTF8(key);
-            if (std.mem.startsWith(u8, std.mem.span(name), "_")) continue;
+        const Entry = struct {
+            name: []const u8,
+            path: []const u8,
+        };
+        const ModsResponse = struct {
+            modules: []const Entry = &.{},
+        };
 
-            const type_obj = python.PyObject_Type(value);
-            const type_name_obj = python.PyObject_GetAttrString(type_obj, "__name__");
-            defer python.Py_DecRef(type_obj);
-            defer if (type_name_obj != null) python.Py_DecRef(type_name_obj);
+        const parsed = try std.json.parseFromSlice(
+            ModsResponse,
+            self.allocator,
+            line,
+            .{ .ignore_unknown_fields = true },
+        );
+        defer parsed.deinit();
 
-            if (type_name_obj != null and std.mem.eql(u8, std.mem.span(python.PyUnicode_AsUTF8(type_name_obj)), "module")) {
-                count += 1;
-            }
-        }
-
-        const mods = try self.allocator.alloc(Module, count);
-
-        // Second pass: fill the slice
-        pos = 0;
-        var i: usize = 0;
-        while (python.PyDict_Next(self.globals, &pos, &key, &value) != 0) {
-            const name = python.PyUnicode_AsUTF8(key);
-            if (std.mem.startsWith(u8, std.mem.span(name), "_")) continue;
-
-            const type_obj = python.PyObject_Type(value);
-            const type_name_obj = python.PyObject_GetAttrString(type_obj, "__name__");
-            defer python.Py_DecRef(type_obj);
-            defer if (type_name_obj != null) python.Py_DecRef(type_name_obj);
-
-            if (type_name_obj == null or !std.mem.eql(u8, std.mem.span(python.PyUnicode_AsUTF8(type_name_obj)), "module")) continue;
-
-            // PyObject_GetAttrString raises AttributeError on built-in modules without __file__
-            const file_obj = python.PyObject_GetAttrString(value, "__file__");
-            python.PyErr_Clear(); // clear the pending error so it doesn't poison the next PyRun_String
-            const path: [*:0]const u8 = if (file_obj != null) blk: {
-                const p = try self.allocator.dupeZ(u8, std.mem.span(python.PyUnicode_AsUTF8(file_obj)));
-                python.Py_DecRef(file_obj);
-                break :blk p;
-            } else "built-in";
-
+        const mods = try self.allocator.alloc(Module, parsed.value.modules.len);
+        for (parsed.value.modules, 0..) |m, i| {
             mods[i] = .{
-                .name = try self.allocator.dupeZ(u8, std.mem.span(name)),
-                .path = path,
+                .name = try self.allocator.dupe(u8, m.name),
+                .path = try self.allocator.dupe(u8, m.path),
             };
-
-            i += 1;
         }
-
         return mods;
     }
 
-    /// Shut down the CPython interpreter. No kernel methods may be called after this.
-    pub fn deinit(_: *PythonKernel) void {
-        _ = python.PyGILState_Ensure();
-        python.Py_Finalize();
+    /// Send a quit command to the worker and wait for it to exit.
+    pub fn deinit(self: *PythonKernel) void {
+        self.sendJson(.{ .cmd = "quit" }) catch {};
+        _ = self.child.wait(self.io) catch {};
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Internal helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Serialize `value` as JSON and write it as a single newline-terminated
+    /// message to the worker's stdin pipe.
+    fn sendJson(self: *PythonKernel, value: anytype) !void {
+        const json = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
+        defer self.allocator.free(json);
+        // Single write: json + newline so the worker sees a complete line.
+        const msg = try std.mem.concat(self.allocator, u8, &.{ json, "\n" });
+        defer self.allocator.free(msg);
+        try self.child.stdin.?.writeStreamingAll(self.io, msg);
+    }
+
+    /// Read one newline-terminated line from the worker stdout.
+    /// The returned slice is allocator-owned — caller must free.
+    fn readLine(self: *PythonKernel) ![]u8 {
+        var result: std.ArrayList(u8) = .empty;
+        errdefer result.deinit(self.allocator);
+
+        while (true) {
+            // Refill the internal buffer when empty.
+            if (self.read_start >= self.read_end) {
+                const n = try std.posix.read(self.child.stdout.?.handle, &self.read_buf);
+                if (n == 0) return error.WorkerEndOfStream;
+                self.read_start = 0;
+                self.read_end   = n;
+            }
+
+            const chunk = self.read_buf[self.read_start..self.read_end];
+            if (std.mem.indexOfScalar(u8, chunk, '\n')) |nl| {
+                try result.appendSlice(self.allocator, chunk[0..nl]);
+                self.read_start += nl + 1;
+                return result.toOwnedSlice(self.allocator);
+            }
+            try result.appendSlice(self.allocator, chunk);
+            self.read_start = self.read_end;
+        }
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Module-level helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Write the embedded worker script to the well-known temp path.
+/// Uses the C standard library so no io context is required.
+fn writeWorkerScript() !void {
+    const f = std.c.fopen(WORKER_PATH, "wb") orelse return error.CannotCreateWorkerScript;
+    defer _ = std.c.fclose(f);
+    const n = std.c.fwrite(worker_script.ptr, 1, worker_script.len, f);
+    if (n != worker_script.len) return error.WorkerScriptWriteIncomplete;
+}

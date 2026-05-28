@@ -1,14 +1,46 @@
 <script lang="ts">
-	import { FileText, Folder, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@lucide/svelte';
+	import { FileText, Folder, PanelLeftClose, PanelLeftOpen, Loader2 } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 
 	let {
 		open = true,
+		rootPath = '.',
 		ontoggle
 	}: {
 		open?: boolean;
+		rootPath?: string;
 		ontoggle: () => void;
 	} = $props();
+
+	interface Entry {
+		name: string;
+		path: string;
+		isDirectory: boolean;
+		size?: number;
+	}
+
+	let entries = $state<Entry[]>([]);
+	let loading = $state(false);
+	let error = $state('');
+
+	async function fetchEntries(path: string) {
+		loading = true;
+		error = '';
+		try {
+			const res = await fetch(`/api/contents?path=${encodeURIComponent(path)}`);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			entries = await res.json();
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to load directory';
+			entries = [];
+		} finally {
+			loading = false;
+		}
+	}
+
+	$effect(() => {
+		if (open) fetchEntries(rootPath);
+	});
 </script>
 
 <div
@@ -49,42 +81,43 @@
 				class="px-2 text-[0.6875rem] font-semibold tracking-widest text-muted-foreground/60 uppercase"
 				>Explorer</span
 			>
+
 			<div class="mt-3 space-y-0.5">
-				<button
-					class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] text-foreground/70 transition-colors hover:bg-white/4 hover:text-foreground"
-				>
-					<ChevronRight class="size-3.5 text-muted-foreground/40" />
-					<Folder class="size-4 text-[oklch(0.75_0.15_265/0.7)]" />
-					<span>data</span>
-				</button>
-				<button
-					class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] text-foreground/70 transition-colors hover:bg-white/4 hover:text-foreground"
-				>
-					<ChevronRight class="size-3.5 text-muted-foreground/40" />
-					<Folder class="size-4 text-[oklch(0.75_0.15_265/0.7)]" />
-					<span>models</span>
-				</button>
-				<button
-					class="flex w-full items-center gap-2 rounded-md bg-white/6 px-2.5 py-1.5 text-[0.8125rem] text-foreground"
-				>
-					<span class="w-3.5"></span>
-					<FileText class="size-4 text-[oklch(0.75_0.12_200)]" />
-					<span>Untitled.znb</span>
-				</button>
-				<button
-					class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] text-foreground/70 transition-colors hover:bg-white/4 hover:text-foreground"
-				>
-					<span class="w-3.5"></span>
-					<FileText class="size-4 text-muted-foreground/40" />
-					<span>analysis.znb</span>
-				</button>
-				<button
-					class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] text-foreground/70 transition-colors hover:bg-white/4 hover:text-foreground"
-				>
-					<span class="w-3.5"></span>
-					<FileText class="size-4 text-muted-foreground/40" />
-					<span>README.md</span>
-				</button>
+				{#if loading}
+					<div class="flex items-center justify-center py-6">
+						<Loader2 class="size-4 animate-spin text-muted-foreground/40" />
+					</div>
+				{:else if error}
+					<p class="px-2 text-xs text-red-400">{error}</p>
+				{:else if entries.length === 0}
+					<p class="px-2 text-xs text-muted-foreground/50">Empty directory</p>
+				{:else}
+					{#each entries as entry (entry.name)}
+						<button
+							class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] transition-colors hover:bg-white/4 {entry.isDirectory
+								? 'text-foreground/70 hover:text-foreground'
+								: entry.name.endsWith('.znb')
+									? 'text-[oklch(0.75_0.15_265)] hover:text-[oklch(0.85_0.15_265)]'
+									: 'text-muted-foreground/60 hover:text-muted-foreground'}"
+							onclick={() => {
+								if (entry.name.endsWith('.znb')) {
+									goto(`/notebook?path=${encodeURIComponent(entry.path)}`);
+								}
+							}}
+						>
+							{#if entry.isDirectory}
+								<Folder class="size-4 shrink-0 text-[oklch(0.75_0.15_265/0.7)]" />
+							{:else}
+								<FileText
+									class="size-4 shrink-0 {entry.name.endsWith('.znb')
+										? 'text-[oklch(0.75_0.15_265/0.8)]'
+										: 'text-muted-foreground/40'}"
+								/>
+							{/if}
+							<span class="truncate">{entry.name}</span>
+						</button>
+					{/each}
+				{/if}
 			</div>
 		</div>
 	{/if}

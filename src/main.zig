@@ -6,6 +6,7 @@
 //!   --token <tok>  Auth token
 //!   --dev          Enable dev mode
 //!   --no-auth      Disable token authentication
+//!   --root <path>  Root directory to serve notebooks from (default: cwd)
 
 const std = @import("std");
 const httpz = @import("httpz");
@@ -16,6 +17,7 @@ const Arg = enum {
     @"--dev",
     @"--no-auth",
     @"--token",
+    @"--root",
     unknown,
 };
 
@@ -40,6 +42,11 @@ fn parseArgs(args: []const []const u8) !server.Config {
                 if (i + 1 >= args.len) return error.MissingToken;
                 i += 1;
                 config.token = args[i];
+            },
+            .@"--root" => {
+                if (i + 1 >= args.len) return error.MissingRoot;
+                i += 1;
+                config.root_dir = args[i];
             },
             .unknown => {},
         }

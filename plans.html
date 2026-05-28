@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zenji Notebook — Roadmap</title>
+  <style>
+    :root {
+      --bg:         #0f0f11;
+      --surface:    #161618;
+      --surface2:   #1c1c1f;
+      --border:     #2a2a2e;
+      --border2:    #333338;
+      --fg:         #e2e2e6;
+      --fg2:        #a0a0aa;
+      --fg3:        #5a5a65;
+      --accent:     oklch(0.72 0.14 265);
+      --accent-dim: oklch(0.55 0.25 265 / 0.15);
+      --green:      #4ade80;
+      --green-bg:   #4ade8012;
+      --amber:      #fbbf24;
+      --amber-bg:   #fbbf2412;
+      --muted-bg:   #ffffff08;
+      --code-bg:    #1a1a1e;
+      --radius:     8px;
+      --radius-lg:  12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* ── Layout ── */
+    .page {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 100vh;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ── Sidebar nav ── */
+    .nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .nav-logo {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, var(--accent), var(--fg));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1.5rem;
+      display: block;
+    }
+
+    .nav-section {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--fg3);
+      margin: 1rem 0 0.4rem 0.5rem;
+    }
+
+    .nav a {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      color: var(--fg2);
+      text-decoration: none;
+      transition: color 0.12s, background 0.12s;
+    }
+    .nav a:hover { color: var(--fg); background: var(--muted-bg); }
+    .nav a .dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      background: var(--border2);
+    }
+    .nav a.done .dot   { background: var(--green); }
+    .nav a.active .dot { background: var(--amber); }
+
+    /* ── Main content ── */
+    main {
+      padding: 3rem 3.5rem 6rem;
+      max-width: 820px;
+    }
+
+    /* ── Header ── */
+    .header { margin-bottom: 3rem; }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+    .header h1 span {
+      background: linear-gradient(90deg, var(--accent) 0%, var(--fg) 60%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2em 0.65em;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: 1px solid;
+    }
+    .badge-version { color: var(--accent); border-color: var(--accent-dim); background: var(--accent-dim); }
+    .badge-zig     { color: #f7a41d; border-color: #f7a41d20; background: #f7a41d10; }
+
+    /* ── Sections ── */
+    section { margin-bottom: 3rem; }
+
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--fg);
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+
+    h3 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 1.5rem 0 0.6rem;
+    }
+
+    p { color: var(--fg2); margin: 0.6rem 0; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: var(--fg2);
+      margin: 0.75rem 0;
+    }
+    code {
+      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+      font-size: 0.8125em;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
+      color: var(--fg);
+    }
+    pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
+
+    /* ── Diagram ── */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+    .diagram pre { background: none; border: none; padding: 0; margin: 0; color: var(--fg2); }
+
+    /* ── Phase cards ── */
+    .phases { display: flex; flex-direction: column; gap: 1rem; }
+
+    .phase {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .phase:hover { border-color: var(--border2); }
+
+    .phase-head {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .phase-num {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fg3);
+      min-width: 3.5rem;
+    }
+    .phase-title { font-weight: 600; font-size: 0.9375rem; flex: 1; }
+    .phase-ver {
+      font-size: 0.75rem;
+      color: var(--fg3);
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .status {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.6875rem; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.2em 0.6em; border-radius: 20px; border: 1px solid;
+    }
+    .status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .status-done   { color: var(--green); border-color: #4ade8030; background: var(--green-bg); }
+    .status-active { color: var(--amber); border-color: #fbbf2430; background: var(--amber-bg); }
+    .status-stub   { color: #60a5fa;  border-color: #60a5fa30; background: #60a5fa10; }
+    .status-todo   { color: var(--fg3); border-color: var(--border); background: transparent; }
+
+    .phase-body { padding: 1rem 1.25rem; }
+    .phase-desc { font-size: 0.875rem; color: var(--fg2); margin-bottom: 0.75rem; }
+
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+    .checklist li {
+      display: flex; align-items: baseline; gap: 0.6rem;
+      font-size: 0.8125rem;
+    }
+    .checklist li.checked   { color: var(--fg2); }
+    .checklist li.unchecked { color: var(--fg3); }
+
+    .chk {
+      flex-shrink: 0; width: 1rem; text-align: center;
+      font-size: 0.75rem; line-height: 1.8;
+    }
+    .chk-y { color: var(--green); }
+    .chk-n { color: var(--fg3); }
+
+    /* ── Source tree ── */
+    .tree {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      font-size: 0.8125rem;
+      line-height: 1.8;
+      color: var(--fg2);
+      overflow-x: auto;
+    }
+    .tree .dir   { color: var(--accent); }
+    .tree .new   { color: var(--green); }
+    .tree .muted { color: var(--fg3); }
+
+    /* ── Notes grid ── */
+    .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .note {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+    }
+    .note-q {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.4rem;
+    }
+    .note p { font-size: 0.8125rem; color: var(--fg2); margin: 0; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg3); }
+
+    @media (max-width: 800px) {
+      .page { grid-template-columns: 1fr; }
+      .nav { display: none; }
+      main { padding: 2rem 1.25rem 4rem; }
+      .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Sidebar ── -->
+  <nav class="nav">
+    <span class="nav-logo">Zenji</span>
+
+    <span class="nav-section">Overview</span>
+    <a href="#arch">Architecture</a>
+    <a href="#format">Format</a>
+
+    <span class="nav-section">Phases</span>
+    <a href="#p0" class="done"><span class="dot"></span>0 — Foundation</a>
+    <a href="#p1" class="done"><span class="dot"></span>1 — HTTP Server</a>
+    <a href="#p2" class="done"><span class="dot"></span>2 — Python Kernel</a>
+    <a href="#p3" class="done"><span class="dot"></span>3 — .znb Format</a>
+    <a href="#p4" class="done"><span class="dot"></span>4 — Execute API</a>
+    <a href="#p5" class="active"><span class="dot"></span>5 — Frontend</a>
+    <a href="#p6"><span class="dot"></span>6 — Contents API</a>
+    <a href="#p7"><span class="dot"></span>7 — Polish</a>
+    <a href="#p8"><span class="dot"></span>8 — .ipynb Interop</a>
+    <a href="#p9"><span class="dot"></span>9 — Multi-Kernel</a>
+    <a href="#p10"><span class="dot"></span>10 — Packaging</a>
+
+    <span class="nav-section">Reference</span>
+    <a href="#layout">Source Layout</a>
+    <a href="#workflow">Dev Workflow</a>
+    <a href="#notes">Notes</a>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main>
+
+    <div class="header">
+      <h1><span>Zenji Notebook</span> — Roadmap</h1>
+      <div class="header-meta">
+        <span class="badge badge-version">v0.5.0</span>
+        <span class="badge badge-zig">Zig 0.16.0</span>
+      </div>
+    </div>
+
+    <!-- Architecture -->
+    <section id="arch">
+      <h2>Architecture</h2>
+      <p>
+        The Python kernel runs as a persistent subprocess. <code>worker.py</code> is embedded in
+        the binary at compile time, written to <code>/tmp</code> on first kernel start, and kept
+        alive between cells so variables persist across executions. Communication is newline-delimited
+        JSON — one command line in, one response line back.
+      </p>
+      <div class="diagram">
+        <pre>Browser (SvelteKit — served as static files)
+    │
+    │  HTTP REST
+    ▼
+Zig Server Process
+    ├── httpz HTTP server
+    ├── PythonKernel ──► worker.py subprocess  (stdin/stdout JSON)
+    └── Notebook I/O  (reads/writes .znb on disk)</pre>
+      </div>
+      <p>
+        <strong>Execution flow:</strong> browser sends <code>POST /api/execute { path, cell_id }</code>
+        → server reads cell source from <code>.znb</code> → sends JSON command to worker stdin
+        → reads JSON response (stdout, stderr, base64 figures) → writes text outputs inline to
+        <code>.znb</code>, saves figures to the sidecar directory → returns updated cell JSON.
+      </p>
+      <p>
+        The <code>.znb</code> file is the source of truth. On first launch the frontend shows the
+        environment picker; the selection is saved to <code>.zenji.json</code> and the kernel is
+        spawned automatically on subsequent starts.
+      </p>
+    </section>
+
+    <!-- .znb Format -->
+    <section id="format">
+      <h2>.znb Format</h2>
+      <p>
+        <code>.znb</code> is a compact binary notebook format. Image outputs are <em>not</em>
+        stored in the file — they live in a sidecar directory <code>.{notebook_name}/</code> and
+        the <code>.znb</code> stores only an <code>image_ref</code> path fragment.
+      </p>
+      <h3>On-disk layout</h3>
+<pre>my_analysis.znb       — source of truth: code, structure, text outputs
+.my_analysis/         — execution cache: PNG artifacts
+    {cell_id}/
+        0.png
+        1.png</pre>
+      <p>The sidecar is ephemeral. <code>rm -rf .my_analysis/</code> clears all figure outputs; re-running cells recreates them. Figures survive server restarts — re-opening a notebook shows the last run's plots without re-executing anything.</p>
+      <h3>Binary layout</h3>
+<pre>[NOTEBOOK HEADER]
+magic:         u8[5]   "ZENJI"
+version:       u8      (currently 1)
+cell_count:    u32
+next_cell_id:  u32     monotonic counter — never reused
+kernel_type:   u8      0=python 1=julia 2=r 3=mojo
+
+[CELL]  × cell_count
+cell_type:       u8   0=code 1=markdown
+cell_id:         u32  stable, assigned at creation
+execution_count: u32  0 = never executed
+source_len:      u32
+source:          u8[source_len]
+output_count:    u8
+
+  [OUTPUT]  × output_count
+  output_type:  u8   0=stdout 1=stderr 2=image_ref 3=error
+  output_len:   u32
+  output:       u8[output_len]
+                  stdout/stderr/error → raw UTF-8
+                  image_ref → "{cell_id}/{index}"</pre>
+    </section>
+
+    <!-- Phases -->
+    <section id="phases">
+      <h2>Phases</h2>
+      <div class="phases">
+
+        <div class="phase" id="p0">
+          <div class="phase-head">
+            <span class="phase-num">Phase 0</span>
+            <span class="phase-title">Foundation</span>
+            <span class="phase-ver">v0.1.0</span>
+            <span class="status status-done">Complete</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> Zig project, build.zig, httpz dependency</li>
+              <li class="checked"><span class="chk chk-y">✓</span> SvelteKit frontend with adapter-static</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>crawler.zig</code> — generates <code>src/assets.zig</code> from frontend build</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Frontend assets embedded via <code>@embedFile</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> Dev mode: serve assets from disk for fast iteration</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p1">
+          <div class="phase-head">
+            <span class="phase-num">Phase 1</span>
+            <span class="phase-title">HTTP Server</span>
+            <span class="phase-ver">v0.2.0</span>
+            <span class="status status-done">Complete</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> httpz server with configurable port</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Token auth middleware</li>
+              <li class="checked"><span class="chk chk-y">✓</span> CORS middleware (dev mode)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Request logging middleware</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Static file serving (embedded + dev disk mode)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> SPA fallback (unknown routes → index.html)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> MIME type detection</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Graceful shutdown on SIGINT / SIGTERM</li>
+              <li class="checked"><span class="chk chk-y">✓</span> CLI flags: <code>--port</code>, <code>--token</code>, <code>--no-auth</code>, <code>--dev</code>, <code>--root</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p2">
+          <div class="phase-head">
+            <span class="phase-num">Phase 2</span>
+            <span class="phase-title">Python Kernel</span>
+            <span class="phase-ver">v0.3.0</span>
+            <span class="status status-done">Complete</span>
+          </div>
+          <div class="phase-body">
+            <p class="phase-desc">
+              Persistent subprocess worker. <code>worker.py</code> is embedded at compile time and
+              written to <code>/tmp</code> on first start. Commands are JSON lines on stdin; responses
+              on stdout. Variables persist across cells because the worker stays alive.
+            </p>
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> <code>worker.py</code> — JSON protocol, stdout/stderr capture, matplotlib figure capture</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>PythonKernel</code> — spawn worker, send/receive JSON, parse results</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>Kernel</code> union dispatch (<code>kernel.zig</code>)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Environment scanner — detects venvs in notebook directory</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Environment config — persists selection to <code>.zenji.json</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>GET /api/environment</code> — detected + saved envs for a directory</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>POST /api/environment</code> — save selection and (re)start kernel</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>GET /api/home</code> — user home directory for the file browser</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Environment picker UI — shown on first launch</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Kernel shuts down cleanly on server exit</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p3">
+          <div class="phase-head">
+            <span class="phase-num">Phase 3</span>
+            <span class="phase-title">.znb Format &amp; I/O</span>
+            <span class="phase-ver">v0.4.0</span>
+            <span class="status status-done">Complete</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> <code>output.zig</code>, <code>cell.zig</code>, <code>notebook.zig</code> — in-memory structs with serialize/deserialize</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Find a cell by ID (<code>findCell</code>)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>load()</code> / <code>save()</code> working with real files (Zig 0.16.0 Io API)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Write updated cell output back to disk (load → findCell → mutate → save)</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Handle missing/malformed <code>.znb</code> gracefully</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Path traversal security (<code>util/path.zig</code>)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p4">
+          <div class="phase-head">
+            <span class="phase-num">Phase 4</span>
+            <span class="phase-title">Execute API</span>
+            <span class="phase-ver">v0.5.0</span>
+            <span class="status status-done">Complete</span>
+          </div>
+          <div class="phase-body">
+            <p class="phase-desc">End-to-end execution: edit a cell, click Run, see output and figures.</p>
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> <code>POST /api/execute</code> — body: <code>{ "path": "...", "cell_id": &lt;u32&gt; }</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> Read cell source from <code>.znb</code>, pass to kernel</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Write stdout/stderr inline to <code>.znb</code>; increment <code>execution_count</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> Decode base64 figures → write PNG files to sidecar directory</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Return <code>200 OK</code> with updated cell JSON</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Handle execution errors — write error output, still return 200</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Handle file-not-found, cell-not-found</li>
+              <li class="checked"><span class="chk chk-y">✓</span> <code>GET /outputs?path=&lt;notebook&gt;&amp;ref=&lt;cell_id/idx&gt;</code> — serve sidecar PNG to browser</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p5">
+          <div class="phase-head">
+            <span class="phase-num">Phase 5</span>
+            <span class="phase-title">Frontend Integration</span>
+            <span class="phase-ver">v0.6.0</span>
+            <span class="status status-active">In Progress</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> Open a <code>.znb</code> — <code>GET /api/notebook?path=...</code> returns full notebook as JSON</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Run cell calls <code>POST /api/execute</code>, re-renders updated cell from response</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Save calls <code>PUT /api/notebook?path=...</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> Image outputs rendered via <code>&lt;img src="/outputs?..."&gt;</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> Plot lightbox — fullscreen viewer with keyboard navigation and thumbnail strip</li>
+              <li class="checked"><span class="chk chk-y">✓</span> Left sidebar shows real directory contents from <code>GET /api/contents</code></li>
+              <li class="checked"><span class="chk chk-y">✓</span> Variable and module explorer — live after each cell run</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Execution count display (<code>[3]:</code>)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Cell status indicator (idle / running)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Keyboard shortcuts: Shift+Enter (run + move), Ctrl+Enter (run + stay)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Wire up menu bar actions (Run All, Save, Export)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p6">
+          <div class="phase-head">
+            <span class="phase-num">Phase 6</span>
+            <span class="phase-title">Contents API</span>
+            <span class="phase-ver">v0.7.0</span>
+            <span class="status status-todo">Not started</span>
+          </div>
+          <div class="phase-body">
+            <p class="phase-desc">Full file management: create, rename, delete notebooks from the UI.</p>
+            <ul class="checklist">
+              <li class="checked"><span class="chk chk-y">✓</span> <code>GET /api/contents?path=</code> — directory listing (name, type, size)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>POST /api/contents/:path</code> — create new <code>.znb</code></li>
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>DELETE /api/contents/:path</code> — delete <code>.znb</code> + sidecar</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>PATCH /api/contents/:path</code> — rename/move (moves sidecar too)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p7">
+          <div class="phase-head">
+            <span class="phase-num">Phase 7</span>
+            <span class="phase-title">Polish</span>
+            <span class="phase-ver">v0.8.0</span>
+            <span class="status status-todo">Not started</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="unchecked"><span class="chk chk-n">○</span> Autosave (debounced, 30s if dirty)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Ctrl+S / Cmd+S manual save</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Run All / Run All Above / Run All Below</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Clear outputs (delete sidecar dir, zero output counts)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Interrupt kernel (signal worker subprocess)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Restart kernel (kill and respawn worker)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Toast notifications for errors</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Handle server disconnection gracefully</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p8">
+          <div class="phase-head">
+            <span class="phase-num">Phase 8</span>
+            <span class="phase-title">.ipynb Interop</span>
+            <span class="phase-ver">v0.9.0</span>
+            <span class="status status-todo">Not started</span>
+          </div>
+          <div class="phase-body">
+            <p class="phase-desc">Import existing Jupyter notebooks; export <code>.znb</code> back to <code>.ipynb</code> for sharing.</p>
+            <ul class="checklist">
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>notebook/ipynb.zig</code> — parse <code>.ipynb</code> JSON (nbformat v4)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>notebook/convert.zig</code> — <code>Notebook</code> ↔ <code>.znb</code> and <code>.ipynb</code></li>
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>POST /api/import</code> — convert <code>.ipynb</code> to <code>.znb</code></li>
+              <li class="unchecked"><span class="chk chk-n">○</span> <code>GET /api/export?format=ipynb</code> — convert <code>.znb</code> to <code>.ipynb</code></li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Handle nbformat v3/v4 variance; <code>source</code> as string-or-array quirk</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p9">
+          <div class="phase-head">
+            <span class="phase-num">Phase 9</span>
+            <span class="phase-title">Multi-Kernel</span>
+            <span class="phase-ver">v0.10.0</span>
+            <span class="status status-stub">Stubs only</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="unchecked"><span class="chk chk-n">○</span> Julia kernel backend</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> R kernel backend</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Kernel picker in the UI</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Auto-detect kernel from notebook metadata</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Kernel-per-notebook (keyed by file path)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="phase" id="p10">
+          <div class="phase-head">
+            <span class="phase-num">Phase 10</span>
+            <span class="phase-title">Packaging</span>
+            <span class="phase-ver">v1.0.0</span>
+            <span class="status status-todo">Not started</span>
+          </div>
+          <div class="phase-body">
+            <ul class="checklist">
+              <li class="unchecked"><span class="chk chk-n">○</span> Release build strips debug symbols</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Cross-compile: Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> GitHub Actions CI (build + test on push)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Release automation (tag → build → GitHub release artifacts)</li>
+              <li class="unchecked"><span class="chk chk-n">○</span> Installation instructions</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Source Layout -->
+    <section id="layout">
+      <h2>Source Layout</h2>
+      <div class="tree">
+        <span class="dir">src/</span><br>
+        ├── main.zig            <span class="muted"># CLI args, server startup</span><br>
+        ├── types.zig           <span class="muted"># CellResult, Variable, Module</span><br>
+        ├── assets.zig          <span class="muted"># generated — do not edit</span><br>
+        │<br>
+        ├── <span class="dir">server/</span><br>
+        │   ├── server.zig      <span class="muted"># Config, startServer, signal handling</span><br>
+        │   ├── router.zig      <span class="muted"># route registration</span><br>
+        │   ├── handler.zig     <span class="muted"># route handlers</span><br>
+        │   ├── static.zig      <span class="muted"># static asset serving</span><br>
+        │   └── middleware.zig  <span class="muted"># logging, auth, CORS</span><br>
+        │<br>
+        ├── <span class="dir">kernel/</span><br>
+        │   ├── kernel.zig       <span class="muted"># Kernel union — dispatches to backends</span><br>
+        │   ├── pythonkernel.zig <span class="muted"># subprocess worker backend</span><br>
+        │   ├── <span class="new">worker.py</span>        <span class="muted"># embedded Python worker (JSON/stdin/stdout)</span><br>
+        │   └── <span class="muted">(julia/r/mojo stubs)</span><br>
+        │<br>
+        ├── <span class="dir">notebook/</span><br>
+        │   ├── notebook.zig    <span class="muted"># Notebook — load/save/serialize/findCell</span><br>
+        │   ├── cell.zig        <span class="muted"># Cell — serialize/deserialize</span><br>
+        │   └── output.zig      <span class="muted"># Output — serialize/deserialize</span><br>
+        │<br>
+        ├── <span class="dir new">env/</span><br>
+        │   ├── <span class="new">scanner.zig</span>     <span class="muted"># detect Python venvs in a directory</span><br>
+        │   └── <span class="new">config.zig</span>      <span class="muted"># read/write .zenji.json</span><br>
+        │<br>
+        ├── <span class="dir">api/</span><br>
+        │   ├── execute.zig      <span class="muted"># POST /api/execute</span><br>
+        │   ├── <span class="new">outputs.zig</span>      <span class="muted"># GET /outputs (sidecar image serving)</span><br>
+        │   ├── <span class="new">environment.zig</span>  <span class="muted"># GET/POST /api/environment, GET /api/home</span><br>
+        │   ├── notebook.zig     <span class="muted"># GET/PUT /api/notebook</span><br>
+        │   ├── contents.zig     <span class="muted"># GET /api/contents</span><br>
+        │   ├── variables.zig    <span class="muted"># GET /api/variables</span><br>
+        │   └── <span class="muted">(stubs: config, kernels, kernelspecs, sessions)</span><br>
+        │<br>
+        ├── <span class="dir">auth/</span><br>
+        │   └── token.zig       <span class="muted"># token generation and validation</span><br>
+        │<br>
+        └── <span class="dir">util/</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;├── mime.zig        <span class="muted"># MIME type detection</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;├── path.zig        <span class="muted"># sandbox path validation</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;└── test_io.zig     <span class="muted"># FixedBufferStream for tests</span><br>
+        <br>
+        <span class="dir">src/frontend/</span>        <span class="muted"># SvelteKit (Bun + Tailwind 4 + CodeMirror 6)</span><br>
+        ├── src/routes/         <span class="muted"># pages (/, /notebook)</span><br>
+        └── src/lib/components/ <span class="muted"># NotebookCell, DataExplorer, EnvironmentPicker,</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="muted"> PlotLightbox, DirectoryBrowser, …</span>
+      </div>
+    </section>
+
+    <!-- Dev Workflow -->
+    <section id="workflow">
+      <h2>Dev Workflow</h2>
+<pre># First time
+cd src/frontend && bun install && cd ../..
+
+# Build everything
+bun run build --cwd src/frontend
+zig build
+
+# Run (dev mode — assets from disk, no auth)
+zig build run -- --dev --no-auth
+
+# In a second terminal, watch the frontend
+cd src/frontend && bun run dev
+
+# Tests
+zig build test</pre>
+    </section>
+
+    <!-- Notes -->
+    <section id="notes">
+      <h2>Notes</h2>
+      <div class="notes">
+        <div class="note">
+          <div class="note-q">Why not embedded CPython?</div>
+          <p>The initial implementation used <code>translate_c</code> to call CPython directly. That requires matching header versions at compile time. The subprocess approach works with any Python — system, pyenv, conda, uv — and users can switch environments without recompiling.</p>
+        </div>
+        <div class="note">
+          <div class="note-q">Why not ZMQ?</div>
+          <p>stdin/stdout JSON is simpler — no IPC sockets, no connection files, no heartbeat threads. The worker protocol is a single JSON line per command/response, trivial to debug with <code>strace</code> or by hand.</p>
+        </div>
+        <div class="note">
+          <div class="note-q">Why not WebSockets?</div>
+          <p>The execution model is request/response — the browser sends code, the server runs it, the browser re-renders from the response. WebSockets would add complexity without a clear benefit at this stage.</p>
+        </div>
+        <div class="note">
+          <div class="note-q">Why .znb and not .ipynb?</div>
+          <p>The <code>.ipynb</code> JSON format stores binary outputs as base64 and requires parsing the entire document to access a single cell. <code>.znb</code> is compact binary; figures live in the sidecar and are served as static files. <code>.ipynb</code> import/export is planned for Phase 8.</p>
+        </div>
+        <div class="note">
+          <div class="note-q">Why sidecar for images?</div>
+          <p>Keeping artifacts out of the <code>.znb</code> keeps the notebook small. The sidecar is an execution cache — delete it to clear figure outputs. Figures survive server restarts: reopening a notebook shows the last run's plots without re-executing anything.</p>
+        </div>
+        <div class="note">
+          <div class="note-q">Single notebook (V1)</div>
+          <p>Only one notebook is open at a time. The global kernel serves whichever notebook is loaded. Multiple notebooks can run simultaneously by launching multiple server instances on different ports.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

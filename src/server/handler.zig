@@ -7,12 +7,14 @@
 const std = @import("std");
 const httpz = @import("httpz");
 
-const static_assets = @import("static_assets");
-const Config = @import("./server.zig").Config;
-const executeApi = @import("../api/execute.zig");
-const variablesApi = @import("../api/variables.zig");
-const contentsApi = @import("../api/contents.zig");
-const notebookApi = @import("../api/notebook.zig");
+const static_assets  = @import("static_assets");
+const Config         = @import("./server.zig").Config;
+const executeApi     = @import("../api/execute.zig");
+const variablesApi   = @import("../api/variables.zig");
+const contentsApi    = @import("../api/contents.zig");
+const notebookApi    = @import("../api/notebook.zig");
+const environmentApi = @import("../api/environment.zig");
+const outputsApi     = @import("../api/outputs.zig");
 
 pub fn indexHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
     _ = ctx;
@@ -54,6 +56,26 @@ pub fn executeHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Respo
 // GET /api/variables
 pub fn variablesHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
     return variablesApi.handle(ctx, req, res);
+}
+
+// GET /api/environment?dir=<path>
+pub fn environmentGetHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return environmentApi.handleGet(ctx, req, res);
+}
+
+// POST /api/environment
+pub fn environmentPostHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return environmentApi.handlePost(ctx, req, res);
+}
+
+// GET /api/home
+pub fn homeHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return environmentApi.handleHome(ctx, req, res);
+}
+
+// GET /outputs?path=<notebook>&ref=<cell_id/fig_idx>
+pub fn outputsHandler(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
+    return outputsApi.handle(ctx, req, res);
 }
 
 // GET /api/
