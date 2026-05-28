@@ -19,7 +19,7 @@
 	}: {
 		/** Directory to scan for environments (the notebook's parent directory). */
 		dir?: string;
-		onReady: () => void;
+		onReady: (env: Env) => void;
 	} = $props();
 
 	let loading = $state(true);
@@ -56,13 +56,13 @@
 			const res = await fetch('/api/environment', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(selected)
+				body: JSON.stringify({ ...selected, dir })
 			});
 			if (!res.ok) {
 				const body = await res.json().catch(() => ({}));
 				throw new Error(body.error ?? `HTTP ${res.status}`);
 			}
-			onReady();
+			onReady(selected);
 		} catch (e: any) {
 			error = e.message ?? 'Failed to start kernel.';
 		} finally {

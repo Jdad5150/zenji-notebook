@@ -3,29 +3,29 @@
 //! Request body: { "path": "...", "cell_id": <u32> }
 //! Response: the updated cell as JSON on success, or an error object.
 
-const std      = @import("std");
-const httpz    = @import("httpz");
-const Config   = @import("../server/server.zig").Config;
+const std = @import("std");
+const httpz = @import("httpz");
+const Config = @import("../server/server.zig").Config;
 const Notebook = @import("../notebook/notebook.zig").Notebook;
-const Output   = @import("../notebook/output.zig").Output;
+const Output = @import("../notebook/output.zig").Output;
 const validatePath = @import("../util/path.zig").validatePath;
 
 const ExecuteBody = struct {
-    path:    []const u8,
+    path: []const u8,
     cell_id: u32,
 };
 
 const OutputJson = struct {
     output_type: []const u8,
-    data:        []const u8,
+    data: []const u8,
 };
 
 const CellJson = struct {
-    cell_id:         u32,
-    cell_type:       []const u8,
+    cell_id: u32,
+    cell_type: []const u8,
     execution_count: u32,
-    source:          []const u8,
-    outputs:         []const OutputJson,
+    source: []const u8,
+    outputs: []const OutputJson,
 };
 
 /// POST /api/execute
@@ -77,7 +77,8 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
     const result = blk: {
         // SAFETY: we checked non-null above and hold the mutex, so this is safe.
         const k = &ctx.kernel.*.?;
-        break :blk k.execute(cell.source) catch {
+        break :blk k.execute(cell.source) catch |err| {
+            std.log.err("kernel execute failed: {}", .{err});
             ctx.kernel_mutex.unlock(ctx.io);
             res.status = 500;
             res.body = "{\"error\":\"execution failed\"}";
@@ -89,8 +90,8 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
     // Free the result strings when we're done building the response.
     const kernel_alloc = ctx.allocator;
     defer {
-        if (result.stdout)  |s|    kernel_alloc.free(s);
-        if (result.stderr)  |s|    kernel_alloc.free(s);
+        if (result.stdout) |s| kernel_alloc.free(s);
+        if (result.stderr) |s| kernel_alloc.free(s);
         if (result.figures) |figs| {
             for (figs) |f| kernel_alloc.free(f);
             kernel_alloc.free(figs);
@@ -101,9 +102,15 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
 
     // Count non-empty outputs (stdout, stderr, figures).
     var out_count: usize = 0;
-    if (result.stdout)  |s|    if (s.len > 0) { out_count += 1; };
-    if (result.stderr)  |s|    if (s.len > 0) { out_count += 1; };
-    if (result.figures) |figs| { out_count += figs.len; }
+    if (result.stdout) |s| if (s.len > 0) {
+        out_count += 1;
+    };
+    if (result.stderr) |s| if (s.len > 0) {
+        out_count += 1;
+    };
+    if (result.figures) |figs| {
+        out_count += figs.len;
+    }
 
     cell.outputs = try arena.alloc(Output, out_count);
     var out_idx: usize = 0;
@@ -119,7 +126,7 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
     if (result.figures) |figs| {
         // Compute sidecar directory: .{stem} next to the notebook file.
         const stem = std.fs.path.stem(body.path);
-        const dir  = std.fs.path.dirname(body.path);
+        const dir = std.fs.path.dirname(body.path);
         const sidecar = if (dir) |d|
             try std.fmt.allocPrint(arena, "{s}/.{s}", .{ d, stem })
         else
@@ -131,9 +138,9 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
 
         for (figs, 0..) |fig_b64, fig_idx| {
             // Decode base64 → raw PNG bytes.
-            const decoder     = std.base64.standard.Decoder;
+            const decoder = std.base64.standard.Decoder;
             const decoded_len = try decoder.calcSizeForSlice(fig_b64);
-            const png_bytes   = try arena.alloc(u8, decoded_len);
+            const png_bytes = try arena.alloc(u8, decoded_len);
             try decoder.decode(png_bytes, fig_b64);
 
             // Write PNG to sidecar.
@@ -158,16 +165,16 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
     for (cell.outputs, 0..) |output, i| {
         outputs_json[i] = .{
             .output_type = @tagName(output.output_type),
-            .data        = output.data,
+            .data = output.data,
         };
     }
 
     const cell_json = CellJson{
-        .cell_id         = cell.cell_id,
-        .cell_type       = @tagName(cell.cell_type),
+        .cell_id = cell.cell_id,
+        .cell_type = @tagName(cell.cell_type),
         .execution_count = cell.execution_count,
-        .source          = cell.source,
-        .outputs         = outputs_json,
+        .source = cell.source,
+        .outputs = outputs_json,
     };
 
     res.status = 200;

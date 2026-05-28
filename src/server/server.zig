@@ -108,7 +108,7 @@ pub fn startServer(io: std.Io, allocator: std.mem.Allocator, config: Config) !vo
     defer if (kernel_slot) |*k| k.deinit();
 
     // If a .zenji.json already exists, try to start the saved kernel immediately.
-    if (envCfg.load(io, allocator) catch null) |saved| {
+    if (envCfg.load(io, allocator, ".") catch null) |saved| {
         defer envCfg.freeSavedEnv(allocator, saved);
         const lang = std.meta.stringToEnum(Language, saved.kind) orelse .python;
         kernel_slot = Kernel.init(lang, io, allocator, saved.binary) catch |err| blk: {

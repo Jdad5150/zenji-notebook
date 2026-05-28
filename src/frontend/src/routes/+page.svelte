@@ -61,7 +61,7 @@
 		await fetch(`/api/notebook?path=${encodeURIComponent(path)}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ kernel_type: 'python', next_cell_id: 1, cells: [] })
+			body: JSON.stringify({ kernel_type: '', next_cell_id: 1, cells: [] })
 		});
 
 		openNotebook(path);

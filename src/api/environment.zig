@@ -28,9 +28,18 @@ const EnvJson = struct {
     binary: []const u8,
 };
 
+const PostBody = struct {
+    kind:   []const u8,
+    label:  []const u8,
+    binary: []const u8,
+    /// Directory containing the notebook — .zenji.json is written here.
+    dir:    []const u8 = ".",
+};
+
 const GetResponseJson = struct {
     saved:    ?EnvJson,
     detected: []const EnvJson,
+    running:  bool,
 };
 
 /// GET /api/environment?dir=<path>
@@ -44,7 +53,7 @@ pub fn handleGet(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) 
 
     // Load saved config
     var saved_json: ?EnvJson = null;
-    if (envCfg.load(ctx.io, arena) catch null) |saved| {
+    if (envCfg.load(ctx.io, arena, dir) catch null) |saved| {
         saved_json = .{
             .kind   = saved.kind,
             .label  = saved.label,
@@ -63,11 +72,16 @@ pub fn handleGet(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) 
         };
     }
 
+    ctx.kernel_mutex.lockUncancelable(ctx.io);
+    const running = ctx.kernel.* != null;
+    ctx.kernel_mutex.unlock(ctx.io);
+
     res.status = 200;
     res.content_type = .JSON;
     res.body = try std.json.Stringify.valueAlloc(arena, GetResponseJson{
         .saved    = saved_json,
         .detected = detected,
+        .running  = running,
     }, .{});
 }
 
@@ -75,14 +89,14 @@ pub fn handleGet(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) 
 pub fn handlePost(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !void {
     const arena = req.arena;
 
-    const body = (try req.json(EnvJson)) orelse {
+    const body = (try req.json(PostBody)) orelse {
         res.status = 400;
         res.body = "{\"error\":\"missing or invalid body\"}";
         return;
     };
 
-    // Persist the selection
-    envCfg.save(ctx.io, ctx.allocator, .{
+    // Persist the selection in the notebook's directory
+    envCfg.save(ctx.io, ctx.allocator, body.dir, .{
         .kind   = body.kind,
         .label  = body.label,
         .binary = body.binary,

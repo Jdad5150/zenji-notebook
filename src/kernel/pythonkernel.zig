@@ -11,6 +11,7 @@
 const std = @import("std");
 const CellResult = @import("../types.zig").CellResult;
 const Variable   = @import("../types.zig").Variable;
+const VarKind    = @import("../types.zig").VarKind;
 const Module     = @import("../types.zig").Module;
 
 /// Embedded worker script — written to disk on first kernel init.
@@ -117,6 +118,8 @@ pub const PythonKernel = struct {
             name:  []const u8,
             value: []const u8,
             type:  []const u8,
+            kind:  []const u8 = "other",
+            shape: ?[]const u8 = null,
         };
         const VarsResponse = struct {
             variables: []const Entry = &.{},
@@ -136,6 +139,8 @@ pub const PythonKernel = struct {
                 .name      = try self.allocator.dupe(u8, v.name),
                 .value     = try self.allocator.dupe(u8, v.value),
                 .type_name = try self.allocator.dupe(u8, v.type),
+                .kind      = std.meta.stringToEnum(VarKind, v.kind) orelse .other,
+                .shape     = if (v.shape) |s| try self.allocator.dupe(u8, s) else null,
             };
         }
         return vars;

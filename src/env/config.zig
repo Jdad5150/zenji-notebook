@@ -18,12 +18,14 @@ pub const SavedEnv = struct {
     binary: []const u8,
 };
 
-/// Load the saved environment from .zenji.json.
+/// Load the saved environment from .zenji.json in `dir`.
 /// Returns null if the file does not exist.
 /// On success, all strings are allocator-owned — call freeSavedEnv() when done.
-pub fn load(io: std.Io, allocator: std.mem.Allocator) !?SavedEnv {
+pub fn load(io: std.Io, allocator: std.mem.Allocator, dir: []const u8) !?SavedEnv {
+    const path = try std.fmt.allocPrint(allocator, "{s}/" ++ CONFIG_FILE, .{dir});
+    defer allocator.free(path);
     const cwd = std.Io.Dir.cwd();
-    const file = cwd.openFile(io, CONFIG_FILE, .{}) catch |err| switch (err) {
+    const file = cwd.openFile(io, path, .{}) catch |err| switch (err) {
         error.FileNotFound => return null,
         else => return err,
     };
@@ -51,13 +53,16 @@ pub fn load(io: std.Io, allocator: std.mem.Allocator) !?SavedEnv {
     };
 }
 
-/// Write the environment selection to .zenji.json in cwd.
-pub fn save(io: std.Io, allocator: std.mem.Allocator, env: SavedEnv) !void {
+/// Write the environment selection to .zenji.json in `dir`.
+pub fn save(io: std.Io, allocator: std.mem.Allocator, dir: []const u8, env: SavedEnv) !void {
+    const path = try std.fmt.allocPrint(allocator, "{s}/" ++ CONFIG_FILE, .{dir});
+    defer allocator.free(path);
+
     const json = try std.json.Stringify.valueAlloc(allocator, env, .{});
     defer allocator.free(json);
 
     const cwd = std.Io.Dir.cwd();
-    const file = try cwd.createFile(io, CONFIG_FILE, .{});
+    const file = try cwd.createFile(io, path, .{});
     defer file.close(io);
     try file.writeStreamingAll(io, json);
 }

@@ -31,7 +31,7 @@
 	let notebookPath = $state('');
 	let notebookDir = $state('.');   // directory containing the notebook — used for env scanning
 	let notebookTitle = $state('');
-	let kernel = $state('Python');
+	let kernel = $state('python');
 	let runtimeStatus = $state<'idle' | 'running' | 'error'>('idle');
 	let activeCellId = $state<number | null>(null);
 	let varsRefreshKey = $state(0);
@@ -109,12 +109,26 @@
 			? path.substring(0, path.lastIndexOf('/'))
 			: '.';
 
-		// Check whether a kernel is already configured.
+		// Check whether a kernel is already configured and running.
+		let savedEnvKind: string | null = null;
 		try {
 			const envRes = await fetch(`/api/environment?dir=${encodeURIComponent(notebookDir)}`);
 			if (envRes.ok) {
 				const envData = await envRes.json();
-				kernelReady = envData.saved !== null;
+				savedEnvKind = envData.saved?.kind ?? null;
+
+				if (envData.running) {
+					kernelReady = true;
+				} else if (envData.saved) {
+					// Server restarted — saved config exists but kernel isn't running. Restart it.
+					const restartRes = await fetch('/api/environment', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ ...envData.saved, dir: notebookDir })
+					});
+					kernelReady = restartRes.ok;
+				}
+				// else: no saved config → kernelReady stays false → picker shows
 			}
 		} catch {
 			// If we can't reach the env API, let the user proceed and fail later.
@@ -129,7 +143,8 @@
 		}
 
 		const nb = await res.json();
-		kernel = nb.kernel_type ?? 'python';
+		// Saved environment is the source of truth; notebook file is the fallback.
+		kernel = savedEnvKind ?? nb.kernel_type ?? 'python';
 		nextId = nb.next_cell_id ?? 0;
 
 		cells = (nb.cells ?? []).map(
@@ -159,6 +174,8 @@
 
 		if (cell.type === 'markdown') {
 			cell.rendered = true;
+			activeCellId = null;
+			saveNotebook();
 			return;
 		}
 
@@ -238,7 +255,6 @@
 
 	async function saveNotebook() {
 		const body = {
-			// Remove this line: path: notebookPath,
 			kernel_type: kernel.toLowerCase(),
 			next_cell_id: nextId,
 			cells: cells.map((c) => ({
@@ -271,7 +287,7 @@
 					Zenji needs a Python environment to run your code.
 				</p>
 			</div>
-			<EnvironmentPicker dir={notebookDir} onReady={() => (kernelReady = true)} />
+			<EnvironmentPicker dir={notebookDir} onReady={(env) => { kernel = env.kind; kernelReady = true; saveNotebook(); }} />
 		</div>
 	</div>
 {/if}
@@ -316,6 +332,7 @@
 					onsetcelltype={setActiveCellType}
 					onsetmode={setMode}
 					ontoggleexplorer={() => (dataExplorerOpen = !dataExplorerOpen)}
+					onkernelclick={() => (kernelReady = false)}
 				/>
 
 				<!-- Cell area -->
@@ -337,6 +354,7 @@
 									isActive={activeCellId === cell.id}
 									isLast={index === cells.length - 1}
 									{mode}
+									lang={kernel}
 									onrun={() => runCell(cell.id)}
 									onactivate={() => (activeCellId = cell.id)}
 									onchange={(val) => (cell.content = val)}

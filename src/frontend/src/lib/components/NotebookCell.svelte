@@ -11,7 +11,6 @@
 		ChevronDownIcon,
 		GripVertical,
 		Ellipsis,
-		Maximize2
 	} from '@lucide/svelte';
 
 	let {
@@ -20,6 +19,7 @@
 		isActive,
 		isLast,
 		mode,
+		lang = 'python',
 		onrun,
 		onactivate,
 		onchange,
@@ -41,6 +41,7 @@
 		isActive: boolean;
 		isLast: boolean;
 		mode: 'edit' | 'view';
+		lang?: string;
 		onrun: () => void;
 		onactivate: () => void;
 		onchange: (val: string) => void;
@@ -149,6 +150,7 @@
 						{#if mode === 'edit' && isActive}
 							<CodeCell
 								content={cell.content}
+								{lang}
 								onchange={(val) => onchange(val)}
 								onrun={() => onrun()}
 							/>
@@ -157,7 +159,7 @@
 								{#if cell.content}
 									<RenderedCode
 										content={cell.content}
-										lang={cell.type === 'code' ? 'python' : 'markdown'}
+										lang={cell.type === 'code' ? lang : 'markdown'}
 									/>
 								{:else}
 									<p class="py-1 text-sm text-muted-foreground/50 italic">Click to edit</p>
@@ -166,7 +168,7 @@
 						{:else if cell.content}
 							<RenderedCode
 								content={cell.content}
-								lang={cell.type === 'code' ? 'python' : 'markdown'}
+								lang={cell.type === 'code' ? lang : 'markdown'}
 							/>
 						{/if}
 					</div>

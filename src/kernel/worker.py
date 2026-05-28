@@ -29,7 +29,7 @@ _globals: dict = {}
 # Point matplotlib at a non-interactive backend before anyone imports pyplot.
 # Suppress the "FigureCanvasAgg is non-interactive" warning from plt.show().
 try:
-    import matplotlib
+    import matplotlib  # type: ignore
     matplotlib.use('Agg')
     warnings.filterwarnings('ignore', message='FigureCanvasAgg is non-interactive')
 except Exception:
@@ -55,7 +55,7 @@ def _execute(code: str) -> dict:
 
     figs: list[str] = []
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # type: ignore
         for n in plt.get_fignums():
             buf = io.BytesIO()
             plt.figure(n).savefig(buf, format='png')
@@ -68,6 +68,48 @@ def _execute(code: str) -> dict:
     return {'stdout': out, 'stderr': err, 'figures': figs}
 
 
+def _classify(value) -> tuple[str, str | None]:
+    """Return (kind, shape) for a variable. Never raises."""
+    try:
+        # bool must come before int — bool is a subclass of int
+        if isinstance(value, bool):
+            return 'scalar', None
+        if isinstance(value, (int, float, complex)):
+            return 'scalar', None
+        if isinstance(value, str):
+            return 'string', None
+        if isinstance(value, dict):
+            return 'mapping', str(len(value))
+        if isinstance(value, (list, tuple, set, frozenset)):
+            return 'sequence', str(len(value))
+        try:
+            import numpy as np
+            if isinstance(value, np.generic):
+                return 'scalar', None
+            if isinstance(value, np.ndarray):
+                if value.ndim == 1:
+                    return 'sequence', str(value.shape[0])
+                if value.ndim == 2:
+                    return 'matrix', f'{value.shape[0]} × {value.shape[1]}'
+                return 'tensor', str(list(value.shape))
+        except Exception:
+            pass
+        try:
+            import pandas as pd
+            if isinstance(value, pd.DataFrame):
+                r, c = value.shape
+                return 'dataframe', f'{r} × {c}'
+            if isinstance(value, pd.Series):
+                return 'sequence', str(len(value))
+        except Exception:
+            pass
+        if callable(value):
+            return 'function', None
+    except Exception:
+        pass
+    return 'other', None
+
+
 def _variables() -> dict:
     result = []
     for name, value in _globals.items():
@@ -78,9 +120,12 @@ def _variables() -> dict:
             continue
         try:
             r = repr(value)
+            if len(r) > 300:
+                r = r[:300] + '…'
         except Exception:
             r = '<error>'
-        result.append({'name': name, 'value': r, 'type': t})
+        kind, shape = _classify(value)
+        result.append({'name': name, 'value': r, 'type': t, 'kind': kind, 'shape': shape})
     return {'variables': result}
 
 

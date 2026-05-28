@@ -32,9 +32,11 @@
 
 	// ── Live variable data from kernel ─────────────────────────────────
 	interface ApiVariable {
-		name: string;
-		type: string;
+		name:  string;
+		type:  string;
 		value: string;
+		kind:  string;
+		shape: string | null;
 	}
 
 	interface ApiModule {
@@ -70,22 +72,21 @@
 		if (refreshKey > 0) fetchVariables();
 	});
 
-	// ── Pill / badge colours per variable type ─────────────────────────
-	function typeClass(typeName: string): string {
-		const lower = typeName.toLowerCase();
-		if (lower.includes('dataframe')) return 'text-[#89b4fa] bg-[oklch(0.55_0.25_265_/_0.1)]';
-		if (lower.includes('ndarray') || lower.includes('array'))
-			return 'text-[#a6e3a1] bg-[#a6e3a1]/10';
-		if (lower.includes('tensor')) return 'text-[#cba6f7] bg-[#cba6f7]/10';
-		if (lower === 'int' || lower === 'float' || lower.includes('int') || lower.includes('float'))
-			return 'text-[#fab387] bg-[#fab387]/10';
-		if (lower === 'bool') return 'text-[#94e2d5] bg-[#94e2d5]/10';
-		if (lower === 'str') return 'text-[#f9e2af] bg-[#f9e2af]/10';
-		if (lower === 'list' || lower === 'tuple' || lower === 'set')
-			return 'text-[#89dceb] bg-[#89dceb]/10';
-		if (lower === 'dict') return 'text-[#f2cdcd] bg-[#f2cdcd]/10';
-		if (lower.includes('module')) return 'text-muted-foreground bg-white/[0.04]';
-		return 'text-muted-foreground bg-white/[0.06]';
+	// ── Pill / badge colours keyed on language-agnostic kind ──────────
+	const KIND_CLASS: Record<string, string> = {
+		scalar:    'text-[#fab387] bg-[#fab387]/10',
+		string:    'text-[#f9e2af] bg-[#f9e2af]/10',
+		sequence:  'text-[#89dceb] bg-[#89dceb]/10',
+		mapping:   'text-[#f2cdcd] bg-[#f2cdcd]/10',
+		dataframe: 'text-[#89b4fa] bg-[oklch(0.55_0.25_265_/_0.1)]',
+		matrix:    'text-[#a6e3a1] bg-[#a6e3a1]/10',
+		tensor:    'text-[#cba6f7] bg-[#cba6f7]/10',
+		function:  'text-muted-foreground bg-white/[0.04]',
+		other:     'text-muted-foreground bg-white/[0.06]',
+	};
+
+	function kindClass(kind: string): string {
+		return KIND_CLASS[kind] ?? KIND_CLASS.other;
 	}
 
 	let selectedVar = $state<ApiVariable | null>(null);
@@ -187,10 +188,12 @@
 						</button>
 						<span class="font-mono text-xs text-foreground/90">{selectedVar.name}</span>
 						<span
-							class="inline-block rounded px-1.5 py-0.5 font-mono text-[0.5625rem] leading-none {typeClass(
-								selectedVar.type
-							)}">{selectedVar.type}</span
+							class="inline-block rounded px-1.5 py-0.5 font-mono text-[0.5625rem] leading-none {kindClass(selectedVar.kind)}"
+							>{selectedVar.type}</span
 						>
+						{#if selectedVar.shape}
+							<span class="font-mono text-[0.5625rem] text-muted-foreground/50">{selectedVar.shape}</span>
+						{/if}
 					</div>
 					<div class="max-h-75 overflow-y-auto">
 						<div class="px-3 py-3">
@@ -231,10 +234,12 @@
 									>
 									<span class="w-16 shrink-0 px-1.5">
 										<span
-											class="inline-block rounded px-1 py-0.5 font-mono text-[0.5625rem] leading-none {typeClass(
-												v.type
-											)}">{v.type}</span
+											class="inline-block rounded px-1 py-0.5 font-mono text-[0.5625rem] leading-none {kindClass(v.kind)}"
+											>{v.type}</span
 										>
+										{#if v.shape}
+											<div class="mt-0.5 font-mono text-[0.5rem] leading-none text-muted-foreground/40">{v.shape}</div>
+										{/if}
 									</span>
 									<span class="flex-1 truncate px-1.5 font-mono text-[0.625rem] text-foreground/60"
 										>{v.value}</span

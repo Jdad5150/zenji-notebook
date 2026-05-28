@@ -11,6 +11,8 @@ const VariableJson = struct {
     name:  []const u8,
     type:  []const u8,
     value: []const u8,
+    kind:  []const u8,
+    shape: ?[]const u8,
 };
 
 const ModuleJson = struct {
@@ -44,6 +46,7 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
             ctx.allocator.free(v.name);
             ctx.allocator.free(v.value);
             ctx.allocator.free(v.type_name);
+            if (v.shape) |s| ctx.allocator.free(s);
         }
         ctx.allocator.free(vars);
     }
@@ -63,6 +66,8 @@ pub fn handle(ctx: *const Config, req: *httpz.Request, res: *httpz.Response) !vo
             .name  = v.name,
             .type  = v.type_name,
             .value = v.value,
+            .kind  = @tagName(v.kind),
+            .shape = v.shape,
         };
     }
 
