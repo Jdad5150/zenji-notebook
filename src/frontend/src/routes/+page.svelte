@@ -92,7 +92,6 @@
 
 	<div class="flex flex-1 items-center justify-center">
 		<div class="w-full max-w-2xl space-y-8">
-
 			{#if browsing}
 				<!-- ── Directory browser ── -->
 				<div class="text-center">
@@ -100,11 +99,13 @@
 					<p class="mt-2 text-sm text-muted-foreground">Navigate to your project directory</p>
 				</div>
 				<DirectoryBrowser
-					onSelect={(path) => { browsing = false; openNotebook(path); }}
+					onSelect={(path) => {
+						browsing = false;
+						openNotebook(path);
+					}}
 					onOpenDir={(dirPath) => openDirectory(dirPath)}
 					onCancel={() => (browsing = false)}
 				/>
-
 			{:else if workspaceDir}
 				<!-- ── Workspace view: notebooks inside the chosen directory ── -->
 				<div class="flex items-center gap-3">
@@ -145,14 +146,15 @@
 						<Plus class="mr-2 size-4" /> New notebook
 					</Button>
 				{/if}
-
 			{:else}
 				<!-- ── Home screen ── -->
 				<div class="text-center">
 					<h1 class="animate-fade-up-blur text-5xl font-bold tracking-tight text-foreground">
 						Notebook
 					</h1>
-					<p class="animate-fade-up-blur mt-3 text-base text-muted-foreground [animation-delay:200ms]">
+					<p
+						class="animate-fade-up-blur mt-3 text-base text-muted-foreground [animation-delay:200ms]"
+					>
 						Choose a workspace to get started
 					</p>
 				</div>
@@ -183,7 +185,9 @@
 					<!-- Recents -->
 					{#if recents.length > 0}
 						<div>
-							<div class="mb-3 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
+							<div
+								class="mb-3 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground"
+							>
 								<Clock class="size-4" />
 								Recent
 							</div>
@@ -210,7 +214,6 @@
 					{/if}
 				</div>
 			{/if}
-
 		</div>
 	</div>
 </div>

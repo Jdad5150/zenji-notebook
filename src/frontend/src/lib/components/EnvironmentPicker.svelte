@@ -98,8 +98,7 @@
 				Create a virtual environment in the notebook's directory, then refresh.
 			</p>
 			<pre
-				class="mt-3 rounded bg-white/5 px-3 py-2 text-left text-xs text-muted-foreground"
-			>uv venv        # Python via uv
+				class="mt-3 rounded bg-white/5 px-3 py-2 text-left text-xs text-muted-foreground">uv venv        # Python via uv
 python -m venv .venv  # plain venv</pre>
 			<p class="mt-2 text-xs text-muted-foreground/60">Scanning: <code>{dir}</code></p>
 			<Button variant="outline" size="sm" class="mt-4" onclick={loadEnvs}>Refresh</Button>

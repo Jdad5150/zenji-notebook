@@ -10,7 +10,7 @@
 		ChevronUp,
 		ChevronDownIcon,
 		GripVertical,
-		Ellipsis,
+		Ellipsis
 	} from '@lucide/svelte';
 
 	let {
@@ -186,7 +186,7 @@
 						{#each cell.plots as src, i (i)}
 							<div class="mt-2 px-1">
 								<img
-									src={src}
+									{src}
 									alt="Plot output {i + 1}"
 									class="block max-h-96 rounded-lg object-contain"
 								/>

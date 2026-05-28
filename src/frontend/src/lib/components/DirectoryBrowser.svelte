@@ -94,7 +94,8 @@
 					{#if pathSegments.length === 0}
 						<Breadcrumb.Page>/</Breadcrumb.Page>
 					{:else}
-						<Breadcrumb.Link onclick={() => navigate('/')} class="cursor-pointer">/</Breadcrumb.Link>
+						<Breadcrumb.Link onclick={() => navigate('/')} class="cursor-pointer">/</Breadcrumb.Link
+						>
 					{/if}
 				</Breadcrumb.Item>
 

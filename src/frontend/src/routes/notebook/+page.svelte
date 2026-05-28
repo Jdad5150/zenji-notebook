@@ -29,7 +29,7 @@
 	let dataExplorerOpen = $state(true);
 	let mode = $state<'edit' | 'view'>('edit');
 	let notebookPath = $state('');
-	let notebookDir = $state('.');   // directory containing the notebook — used for env scanning
+	let notebookDir = $state('.'); // directory containing the notebook — used for env scanning
 	let notebookTitle = $state('');
 	let kernel = $state('python');
 	let runtimeStatus = $state<'idle' | 'running' | 'error'>('idle');
@@ -91,7 +91,9 @@
 	function outputsToPlots(outputs: OutputData[]): string[] {
 		return outputs
 			.filter((o) => o.output_type === 'image_ref')
-			.map((o) => `/outputs?path=${encodeURIComponent(notebookPath)}&ref=${encodeURIComponent(o.data)}`);
+			.map(
+				(o) => `/outputs?path=${encodeURIComponent(notebookPath)}&ref=${encodeURIComponent(o.data)}`
+			);
 	}
 
 	onMount(async () => {
@@ -105,9 +107,7 @@
 		notebookTitle = path.split('/').pop() ?? path;
 
 		// Derive the directory this notebook lives in so we scan for venvs there.
-		notebookDir = path.includes('/')
-			? path.substring(0, path.lastIndexOf('/'))
-			: '.';
+		notebookDir = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.';
 
 		// Check whether a kernel is already configured and running.
 		let savedEnvKind: string | null = null;
@@ -218,7 +218,15 @@
 
 	function addCell(type: 'code' | 'markdown' = 'code', atIndex?: number) {
 		const id = nextId++;
-		const newCell: CellData = { id, type, content: '', output: '', rendered: false, outputs: [], plots: [] };
+		const newCell: CellData = {
+			id,
+			type,
+			content: '',
+			output: '',
+			rendered: false,
+			outputs: [],
+			plots: []
+		};
 		if (atIndex !== undefined) {
 			cells = [...cells.slice(0, atIndex), newCell, ...cells.slice(atIndex)];
 		} else {
@@ -279,7 +287,9 @@
 
 {#if !kernelReady}
 	<!-- Environment picker overlay — shown when no kernel has been configured yet -->
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+	>
 		<div class="w-full max-w-md space-y-6 rounded-2xl border border-white/8 bg-card p-8 shadow-2xl">
 			<div class="text-center">
 				<h2 class="text-xl font-semibold text-foreground">Choose an Environment</h2>
@@ -287,14 +297,25 @@
 					Zenji needs a Python environment to run your code.
 				</p>
 			</div>
-			<EnvironmentPicker dir={notebookDir} onReady={(env) => { kernel = env.kind; kernelReady = true; saveNotebook(); }} />
+			<EnvironmentPicker
+				dir={notebookDir}
+				onReady={(env) => {
+					kernel = env.kind;
+					kernelReady = true;
+					saveNotebook();
+				}}
+			/>
 		</div>
 	</div>
 {/if}
 
 <div class="flex h-screen overflow-hidden bg-background">
 	{#if mode === 'edit'}
-		<NotebookSidebar open={sidebarOpen} rootPath={notebookDir} ontoggle={() => (sidebarOpen = !sidebarOpen)} />
+		<NotebookSidebar
+			open={sidebarOpen}
+			rootPath={notebookDir}
+			ontoggle={() => (sidebarOpen = !sidebarOpen)}
+		/>
 	{/if}
 
 	<div class="flex flex-1 flex-col overflow-hidden">

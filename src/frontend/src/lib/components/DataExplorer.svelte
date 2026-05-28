@@ -32,10 +32,10 @@
 
 	// ── Live variable data from kernel ─────────────────────────────────
 	interface ApiVariable {
-		name:  string;
-		type:  string;
+		name: string;
+		type: string;
 		value: string;
-		kind:  string;
+		kind: string;
 		shape: string | null;
 	}
 
@@ -74,15 +74,15 @@
 
 	// ── Pill / badge colours keyed on language-agnostic kind ──────────
 	const KIND_CLASS: Record<string, string> = {
-		scalar:    'text-[#fab387] bg-[#fab387]/10',
-		string:    'text-[#f9e2af] bg-[#f9e2af]/10',
-		sequence:  'text-[#89dceb] bg-[#89dceb]/10',
-		mapping:   'text-[#f2cdcd] bg-[#f2cdcd]/10',
+		scalar: 'text-[#fab387] bg-[#fab387]/10',
+		string: 'text-[#f9e2af] bg-[#f9e2af]/10',
+		sequence: 'text-[#89dceb] bg-[#89dceb]/10',
+		mapping: 'text-[#f2cdcd] bg-[#f2cdcd]/10',
 		dataframe: 'text-[#89b4fa] bg-[oklch(0.55_0.25_265_/_0.1)]',
-		matrix:    'text-[#a6e3a1] bg-[#a6e3a1]/10',
-		tensor:    'text-[#cba6f7] bg-[#cba6f7]/10',
-		function:  'text-muted-foreground bg-white/[0.04]',
-		other:     'text-muted-foreground bg-white/[0.06]',
+		matrix: 'text-[#a6e3a1] bg-[#a6e3a1]/10',
+		tensor: 'text-[#cba6f7] bg-[#cba6f7]/10',
+		function: 'text-muted-foreground bg-white/[0.04]',
+		other: 'text-muted-foreground bg-white/[0.06]'
 	};
 
 	function kindClass(kind: string): string {
@@ -188,11 +188,14 @@
 						</button>
 						<span class="font-mono text-xs text-foreground/90">{selectedVar.name}</span>
 						<span
-							class="inline-block rounded px-1.5 py-0.5 font-mono text-[0.5625rem] leading-none {kindClass(selectedVar.kind)}"
-							>{selectedVar.type}</span
+							class="inline-block rounded px-1.5 py-0.5 font-mono text-[0.5625rem] leading-none {kindClass(
+								selectedVar.kind
+							)}">{selectedVar.type}</span
 						>
 						{#if selectedVar.shape}
-							<span class="font-mono text-[0.5625rem] text-muted-foreground/50">{selectedVar.shape}</span>
+							<span class="font-mono text-[0.5625rem] text-muted-foreground/50"
+								>{selectedVar.shape}</span
+							>
 						{/if}
 					</div>
 					<div class="max-h-75 overflow-y-auto">
@@ -234,11 +237,16 @@
 									>
 									<span class="w-16 shrink-0 px-1.5">
 										<span
-											class="inline-block rounded px-1 py-0.5 font-mono text-[0.5625rem] leading-none {kindClass(v.kind)}"
-											>{v.type}</span
+											class="inline-block rounded px-1 py-0.5 font-mono text-[0.5625rem] leading-none {kindClass(
+												v.kind
+											)}">{v.type}</span
 										>
 										{#if v.shape}
-											<div class="mt-0.5 font-mono text-[0.5rem] leading-none text-muted-foreground/40">{v.shape}</div>
+											<div
+												class="mt-0.5 font-mono text-[0.5rem] leading-none text-muted-foreground/40"
+											>
+												{v.shape}
+											</div>
 										{/if}
 									</span>
 									<span class="flex-1 truncate px-1.5 font-mono text-[0.625rem] text-foreground/60"
